@@ -30,3 +30,13 @@ We'll focus mostly on Warp performance. Things to consider:
     * Using CAS instead of lock (MVar)
 
 #1 and #2 should be symmetric.
+
+---
+
+Schedule
+
+* 1-page outline by September 3rd (Labour Day)
+* First draft by the end of October
+* Second draft mid-January (after review by us)
+* Third draft in March (after review by the review team)
+* Publication in May
