@@ -26,6 +26,12 @@ We'll focus mostly on Warp performance. Things to consider:
 * Logging
     * Handle
     * Date builder
+         http-date:    359ns
+         unix-time:  2,071ns
+         time:      43,636ns
+        * Use http-date to generate web date
+        * Use unix-time on Unix to generate zoned date
+            * This is cached
 * Lock free
     * Using CAS instead of lock (MVar)
 
