@@ -19,6 +19,7 @@ We'll focus mostly on Warp performance. Things to consider:
     * sendto() vs writev()
     * sendfile()
     * file info cache -- open()/stat()/close()
+    * gettimeofday() and time() is not system call anymore on Linux 3
 * Parsing. (#1)
     * Dedicated parser (not using parser combinator)
 * Building. (#2)
