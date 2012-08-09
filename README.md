@@ -16,10 +16,18 @@ We'll focus mostly on Warp performance. Things to consider:
 * Minimize system calls.
     * Non-blocking
     * accept() vs accept4()
+        * An accepted socket inherits the flags from its listening socket
+          on BSD.
+        * An accepted socket does not inherit the flags from its listening
+          socket on Linux. Two fcntl()s are necessary to set O_NONBLOCK:
+          reading the flags, ORed them with O_NONBLOCK, and set them.
+          accept4() can return an accepted socket with O_NONBLOCK set.
     * sendto() vs writev()
     * sendfile()
     * file info cache -- open()/stat()/close()
-    * gettimeofday() and time() is not system call anymore on Linux 3
+    * gettimeofday() and time() are system calls on Linux 3.
+      But they are not system calls anymore on Linux 3.
+      BSD's gettimeofday() and time() are not system calls.
 * Parsing. (#1)
     * Dedicated parser (not using parser combinator)
 * Building. (#2)
