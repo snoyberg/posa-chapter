@@ -51,7 +51,7 @@
 <p>We tested several benchmark tools in the past and our favorite one is <code>weighttp</code>. It is based on the <code>epoll</code> system call family and can use multiple native threads. We used <code>weighttp</code> as follows:</p>
 <pre><code>weighttp -n 100000 -c 1000 -t 3 -k http://127.0.0.1:8000/</code></pre>
 <p>This means that 1,000 HTTP connections are established and each connection sends 100 requests. 3 native threads are spawn to carry out these jobs..</p>
-<p>For all requests, the same <code>index.html</code> file is returned. I used <code>nginx</code>'s <code>index.html</code> whose size is 151 bytes. As &quot;127.0.0.1&quot; suggests, I measured web servers locally. I should have measured from a remote machine but I don't have suitable environment at this moment.</p>
+<p>For all requests, the same <code>index.html</code> file is returned. We used <code>nginx</code>'s <code>index.html</code> whose size is 151 bytes. As &quot;127.0.0.1&quot; suggests, We measured web servers locally. We should have measured from a remote machine but we don't have suitable environment at this moment. (NOTE: I'm planning to do benchmark using two machines soon.)</p>
 <p>Since Linux has many control parameters, we need to configure the parameters carefully. You can find a good introduction about Linux parameter tuning in <a href="http://gwan.com/en_apachebench_httperf.html">ApacheBench &amp; HTTPerf</a>.</p>
 <p>We carefully configured both Mighty and <code>nginx</code> as follows:</p>
 <ul>
@@ -63,7 +63,7 @@
 <div class="figure">
 <img src="multi-workers.png" alt="Performance of Warp and nginx" /><p class="caption">Performance of Warp and nginx</p>
 </div>
-<p>X-axis is the number of workers and y-axis means throughput whose unit is requests per second. &quot;mighty 2.8.2&quot; (blue) increases workers using the prefork technique.</p>
+<p>X-axis is the number of workers and y-axis means throughput whose unit is requests per second.</p>
 <h2 id="lesson-learned">Lesson learned</h2>
 <ol style="list-style-type: decimal">
 <li>Issuing as few system calls as possible</li>

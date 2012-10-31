@@ -159,11 +159,21 @@ We used `weighttp` as follows:
 
     weighttp -n 100000 -c 1000 -t 3 -k http://127.0.0.1:8000/
 
-This means that 1,000 HTTP connections are established and each connection sends 100 requests. 3 native threads are spawn to carry out these jobs..
+This means that 1,000 HTTP connections are established and
+each connection sends 100 requests.
+3 native threads are spawn to carry out these jobs..
 
-For all requests, the same `index.html` file is returned. I used `nginx`'s `index.html` whose size is 151 bytes. As "127.0.0.1" suggests, I measured web servers locally. I should have measured from a remote machine but I don't have suitable environment at this moment.
+For all requests, the same `index.html` file is returned.
+We used `nginx`'s `index.html` whose size is 151 bytes.
+As "127.0.0.1" suggests, We measured web servers locally.
+We should have measured from a remote machine but
+we don't have suitable environment at this moment.
+(NOTE: I'm planning to do benchmark using two machines soon.)
 
-Since Linux has many control parameters, we need to configure the parameters carefully. You can find a good introduction about Linux parameter tuning in [ApacheBench & HTTPerf](http://gwan.com/en_apachebench_httperf.html).
+Since Linux has many control parameters,
+we need to configure the parameters carefully.
+You can find a good introduction about
+Linux parameter tuning in [ApacheBench & HTTPerf](http://gwan.com/en_apachebench_httperf.html).
 
 We carefully configured both Mighty and `nginx` as follows:
 
@@ -171,11 +181,17 @@ We carefully configured both Mighty and `nginx` as follows:
 - no logging
 - no rate limitation
 
-Since our machine has 12 cores and `weighttp` uses three native threads, we measured web servers from one worker to eight workers(to our experience, three native thread is enough to measure 8 workers). Here is the result:
+Since our machine has 12 cores and
+`weighttp` uses three native threads,
+we measured web servers from one worker to
+eight workers(to our experience,
+three native thread is enough to measure 8 workers).
+Here is the result:
 
 ![Performance of Warp and nginx](multi-workers.png)
 
-X-axis is the number of workers and y-axis means throughput whose unit is requests per second. "mighty 2.8.2" (blue) increases workers using the prefork technique. 
+X-axis is the number of workers and y-axis means throughput
+whose unit is requests per second.
 
 ## Lesson learned
 
