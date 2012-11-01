@@ -412,8 +412,27 @@ Warp, and is awaiting release.
 
 ## Future work
 
-- lock free memory allocation
+We have some items to improve Warp in the future but
+we will explain memory allocation only here.
+When receiving and sending packets, buffers are allocated.
+We think that these memory allocations may be the current bottleneck.
+GHC runtime system uses `pthread_mutex_lock`
+to obtain a large object (larger than 409 bytes in 64 bit machines).
+
+We tried to measure how much memory allocation
+for HTTP response header consume time.
+We copied the `create` function of `ByteString` to Warp and
+surrounded `mallocByteString` with `Debug.Trace.traceEventIO`. 
+Then we complied Mighty with it and took eventlog.
+The result eventlog is illustrated as follows:
 
 ![eventlog](eventlog.png)
+
+Brick red bars indicates the event created by `traceEventIO`. 
+The area surrounded by two bars is the time consumed by `mallocByteString`.
+It is about 1/10 of an HTTP session.
+We are confident that the same thing happens when allocating receiving buffers.
+
+TBD
 
 ## Conclusion

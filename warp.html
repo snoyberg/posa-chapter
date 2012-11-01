@@ -139,10 +139,11 @@
 <p>Since red-black trees are binary search trees, we can implement multimap by combining it and non-empty lists. Fortunately, the list created with <code>toList</code> is sorted. So, we can use <code>fromOrdList</code> to convert the sorted list to a new red-black tree. Now we have a multimap whose look-up is O(log N) and pruning is O(N).</p>
 <p>The cache mechanism has already been merged into the master branch of Warp, and is awaiting release.</p>
 <h2 id="future-work">Future work</h2>
-<ul>
-<li>lock free memory allocation</li>
-</ul>
+<p>We have some items to improve Warp in the future but we will explain memory allocation only here. When receiving and sending packets, buffers are allocated. We think that these memory allocations may be the current bottleneck. GHC runtime system uses <code>pthread_mutex_lock</code> to obtain a large object (larger than 409 bytes in 64 bit machines).</p>
+<p>We tried to measure how much memory allocation for HTTP response header consume time. We copied the <code>create</code> function of <code>ByteString</code> to Warp and surrounded <code>mallocByteString</code> with <code>Debug.Trace.traceEventIO</code>. Then we complied Mighty with it and took eventlog. The result eventlog is illustrated as follows:</p>
 <div class="figure">
 <img src="eventlog.png" alt="eventlog" /><p class="caption">eventlog</p>
 </div>
+<p>Brick red bars indicates the event created by <code>traceEventIO</code>. The area surrounded by two bars is the time consumed by <code>mallocByteString</code>. It is about 1/10 of an HTTP session. We are confident that the same thing happens when allocating receiving buffers.</p>
+<p>TBD</p>
 <h2 id="conclusion">Conclusion</h2>
