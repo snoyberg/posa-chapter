@@ -2,7 +2,7 @@
 
 Authors: Michael Snoyman and Kazu Yamamoto
 
-Warp is a high-performance HTTP engine library in Haskell,
+Warp is a high-performance library of HTTP server side in Haskell,
 a purely functional programming language.
 Both Yesod, a web application framework, and Mighttpd, an HTTP server,
 are implemented over Warp.
@@ -19,7 +19,7 @@ However, to our best knowledge,
 Haskell provides the best scheme for network programming.
 This is because that GHC (Glasgow Haskell Compiler), 
 the flagship compiler of Haskell, provides
-light-weight and robust user thread (or sometime called green thread).
+lightweight and robust user thread (or sometime called green thread).
 In this section, we will briefly explain history of
 network programming in server side.
 
@@ -69,41 +69,40 @@ use of exception handling (although there are no exceptions in C).
 ### 1 process per core 
 
 Many have hit upon the idea of creating
-N event-driven processes to utilize multi-core processors
-where N is the number of cores.
+N event-driven processes to utilize N cores (Fig XXX).
 Port 80 must be shared for web servers.
 Using the prefork technique (please don't confuse with Apache's prefork mode),
 port sharing can be achieved by modifying code slightly.
-We call this "1 process per core" (Fig XXX).
 
 ![1 process per core](3.png)
 
 One web server that uses this architecture is nginx.
 Node.js used the event-driven architecture in the past but
-it also implemented 1 process per core recently.
+it also implemented this scheme recently.
 
 The advantage of this architecture is
-that it utilizes all cores of a multi-core processer
-and improves performance. 
+that it utilizes all cores and improves performance. 
 However, it does not resolve the issue of programs having poor clarity.
 
 ### User threads
 
 GHC's user threads can be used to solve the code clarity.
 They are implemented over an event-driven IO manager.
-GHC's user threads are light weight: 
+Starndard libraries of Haskell use non-blocking system calls
+so that they can cooperate with the IO manager.
+GHC's user threads are lightweight: 
 modern computers can run 100,000 user threads smoothly.
 They are robust: even asynchronous exceptions are catch
 (we explain this later in detail).
 
-Some languages and libraries provided user-space threads in the past,
+Some languages and libraries provided user threads in the past,
 but they are not commonly used now because they are not lightweight
 or are not robust.
 But in Haskell, most computation is non-destructive.
 This means that almost all functions are thread-safe.
 GHC uses data allocation as a safe point of context switch of user threads.
 Because of functional programming style,
-new data are often created and it is known that 
+new data are frequently created and it is known that 
 [such data allocation is regulaly enough for context switching](http://www.aosabook.org/en/ghc.html).
 
 Use of lightweight threads makes
@@ -111,7 +110,7 @@ it possible to write code with good clarity
 like traditional thread programming
 while keeping high performance (Fig XXX).
 
-![Light-weight threads](4.png)
+![User threads](4.png)
 
 ## Warp's architecture
 
@@ -131,7 +130,9 @@ the most right one is the type of return value.
 So, we can interpret the definition
 as an application takes `Request` and returns `Response`.
 
-Warp first receives an HTTP request from a client
+After accepting a new connection, a dedicated user thread is spawn for the
+connection.
+It first receives an HTTP request from a client
 and parses it to `Request`.
 Then, Warp gives the `Request` to an application and
 takes a `Response` from it.
@@ -140,6 +141,9 @@ and sends it back to the client.
 This is illustrated in Fix XXX.
 
 ![Warp](warp.png)
+
+The user thread repeats this procedure and terminates by itself when
+the connection is closed by the peer.
 
 ## Performance of Warp
 
