@@ -307,49 +307,113 @@ This made the throughput at least 100 times faster.
 
 ### For connections
 
-- Requirements
-- System.Timeout.timeout (not scale because one timeout thread per thread)
-- MVar (slow because homebrew spin lock is used)
-- IORef
-- Its algorithm
+To prevent slowloris attacks, Warp kills a user thread,
+which communicates with a client,
+if the client does not send a significant amount of data for a specified period (30 seconds by default).
+Tthe heart of Warp's timeout system is the following two points:
 
-Need a fig
+- Double `IORef`s
+- Safe swap and merge algorithm
+
+Suppose that status of connections is described as `Active` and `Inactive`.
+To clean up inactive connections,
+a dedicated Haskell thread, called the timeout manager, repeatedly inspects the status of each connection.
+If status is `Active`, the timeout manager turns it to `Inactive`.
+If `Inactive`, the timeout manager kills its associated Haskell thread.
+
+Each status is refereed by an `IORef`.
+To update status through this `IORef`,
+atomicity is not necessary because status is just overwritten.
+In addition to the timeout manager,
+each Haskell thread repeatedly turns its status to `Active` through its own `IORef` if its connection actively continues.
+
+To check all statuses easily,
+the timeout manager uses a list of the `IORef` to status.
+A Haskell thread spawned for a new connection
+tries to 'cons' its new `IORef` for an `Active` status to the list.
+So, the list is a critical section and we need atomicity to keep
+the list consistent.
+
+A standard way to keep consistency in Haskell is `MVar`.
+But as Michael Snoyman pointed out in "[Warp: A Haskell Web Server](http://steve.vinoski.net/pdf/IC-Warp_a_Haskell_Web_Server.pdf)", `MVar` (in threaded RTS) is slow.
+This is because each `MVar` is protected with a home-brewed spin lock.
+So, he used another `IORef` to refer the list and `atomicModifyIORef`
+to manipulate it.
+`atomicModifyIORef` is implemented via CAS (Compare-and-Swap),
+which is much faster than spin locks.
+
+The following is the outline of the safe swap and merge algorithm:
+
+    do xs <- atomicModifyIORef ref (\ys -> ([], ys)) -- swap with []
+       xs' <- manipulates_status xs
+       atomicModifyIORef ref (\ys -> (merge xs' ys, ()))
+
+The timeout manager atomically swaps the list with an empty list.
+Then it manipulates the list by turning status and/or removing
+unnecessary status for killed Haskell threads.
+During this process, new connections may be created and
+their status are inserted with `atomicModifyIORef` by
+corresponding Haskell threads.
+Then, the timeout manager atomically merges
+the pruned list and the new list.
+
+![Timeout](timeout.png)
 
 ### For file descriptors
 
-- Requirements
--- no leakage
--- lookup
--- multimap
--- fast pruning
-- Red black tree
+Warp's timeout approach is safe to reuse as a cache mechanism for
+file descriptors because it does not use reference counters.
+However, we cannot simply reuse Warp's timeout code for some reasons:
 
-Need a fig
+Each Haskell thread has its own status. So, status is not shared.
+But we would like to cache file descriptors to avoid `open()` and
+`close()` by sharing.
+So, we need to search a file descriptor for a requested file from
+cached ones. Since this look-up should be fast, we should not use a list.
+You may think `Data.Map` can be used.
+Yes, its look-up is O(log N) but there are two reasons why we cannot use it:
 
-## Logging (xxx necessary?)
+1. `Data.Map` is a finite map which cannot contain multiple values for a single key.
+2. `Data.Map` does not provide a fast pruning method.
 
-- Handle
-- From the Mighty article in Monad.Reader
+Problem 1: because requests are received concurrently,
+two or more file descriptors for the same file may be opened.
+So, we need to store multiple file descriptors for a single file name.
+We can solve this by re-implementing `Data.Map` to
+hold a non-empty list.
+This is technically called a "multimap".
 
-Need a fig
+Problem 2: `Data.Map` is based on a binary search tree called "weight
+balanced tree". To the best of my best knowledge, there is no way to prune the tree
+directly. You may also think that we can convert the tree to a list (`toList`),
+then prune it, and convert the list back to a new tree (`fromList`).
+The cost of the first two operations is O(N) but
+that of the last one is O(N log N) unfortunately.
 
-- date
-- avoiding gettimeofday()
-- caching the formatted date
+One day, I remembered Exercise 3.9 of "Purely Functional Data Structure" -
+to implement `fromOrdList` which constructs
+a red-black tree from an ordered list in O(N).
+My friends and I have a study meeting on this book every month.
+To solve this problem, one guy found a paper by Ralf Hinze,
+"Constructing Red-Black Trees".
+If you want to know its concrete algorithm,
+please read this paper.
+
+Since red-black trees are binary search trees,
+we can implement multimap by combining it and non-empty lists.
+Fortunately, the list created with `toList` is sorted.
+So, we can use `fromOrdList` to convert the sorted list to a new
+red-black tree.
+Now we have a multimap whose look-up is O(log N) and
+pruning is O(N).
+
+The cache mechanism has already been merged into the master branch of
+Warp, and is awaiting release.
 
 ## Future work
 
 - lock free memory allocation
 
-## Profiling and benchmarking
-
-Each item should be included in other chapters.
-
-- weighttp (done)
-- GHC profiler
-- strace (done)
-- eventlog
-- prof
-- tcpdump (done)
+![eventlog](eventlog.png)
 
 ## Conclusion

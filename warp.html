@@ -109,43 +109,40 @@
 <p>To send them in a single TCP packet (when possible), new Warp switched from <code>writev()</code> to <code>send()</code>. It uses the <code>send()</code> system call with the <code>MSG_MORE</code> flag to store a header and the <code>sendfile()</code> system call to send both the stored header and a file. This made the throughput at least 100 times faster.</p>
 <h2 id="clean-up-with-timers">Clean-up with timers</h2>
 <h3 id="for-connections">For connections</h3>
+<p>To prevent slowloris attacks, Warp kills a user thread, which communicates with a client, if the client does not send a significant amount of data for a specified period (30 seconds by default). Tthe heart of Warp's timeout system is the following two points:</p>
 <ul>
-<li>Requirements</li>
-<li>System.Timeout.timeout (not scale because one timeout thread per thread)</li>
-<li>MVar (slow because homebrew spin lock is used)</li>
-<li>IORef</li>
-<li>Its algorithm</li>
+<li>Double <code>IORef</code>s</li>
+<li>Safe swap and merge algorithm</li>
 </ul>
-<p>Need a fig</p>
+<p>Suppose that status of connections is described as <code>Active</code> and <code>Inactive</code>. To clean up inactive connections, a dedicated Haskell thread, called the timeout manager, repeatedly inspects the status of each connection. If status is <code>Active</code>, the timeout manager turns it to <code>Inactive</code>. If <code>Inactive</code>, the timeout manager kills its associated Haskell thread.</p>
+<p>Each status is refereed by an <code>IORef</code>. To update status through this <code>IORef</code>, atomicity is not necessary because status is just overwritten. In addition to the timeout manager, each Haskell thread repeatedly turns its status to <code>Active</code> through its own <code>IORef</code> if its connection actively continues.</p>
+<p>To check all statuses easily, the timeout manager uses a list of the <code>IORef</code> to status. A Haskell thread spawned for a new connection tries to 'cons' its new <code>IORef</code> for an <code>Active</code> status to the list. So, the list is a critical section and we need atomicity to keep the list consistent.</p>
+<p>A standard way to keep consistency in Haskell is <code>MVar</code>. But as Michael Snoyman pointed out in &quot;<a href="http://steve.vinoski.net/pdf/IC-Warp_a_Haskell_Web_Server.pdf">Warp: A Haskell Web Server</a>&quot;, <code>MVar</code> (in threaded RTS) is slow. This is because each <code>MVar</code> is protected with a home-brewed spin lock. So, he used another <code>IORef</code> to refer the list and <code>atomicModifyIORef</code> to manipulate it. <code>atomicModifyIORef</code> is implemented via CAS (Compare-and-Swap), which is much faster than spin locks.</p>
+<p>The following is the outline of the safe swap and merge algorithm:</p>
+<pre><code>do xs &lt;- atomicModifyIORef ref (\ys -&gt; ([], ys)) -- swap with []
+   xs&#39; &lt;- manipulates_status xs
+   atomicModifyIORef ref (\ys -&gt; (merge xs&#39; ys, ()))</code></pre>
+<p>The timeout manager atomically swaps the list with an empty list. Then it manipulates the list by turning status and/or removing unnecessary status for killed Haskell threads. During this process, new connections may be created and their status are inserted with <code>atomicModifyIORef</code> by corresponding Haskell threads. Then, the timeout manager atomically merges the pruned list and the new list.</p>
+<div class="figure">
+<img src="timeout.png" alt="Timeout" /><p class="caption">Timeout</p>
+</div>
 <h3 id="for-file-descriptors">For file descriptors</h3>
-<ul>
-<li>Requirements -- no leakage -- lookup -- multimap -- fast pruning</li>
-<li>Red black tree</li>
-</ul>
-<p>Need a fig</p>
-<h2 id="logging-xxx-necessary">Logging (xxx necessary?)</h2>
-<ul>
-<li>Handle</li>
-<li>From the Mighty article in Monad.Reader</li>
-</ul>
-<p>Need a fig</p>
-<ul>
-<li>date</li>
-<li>avoiding gettimeofday()</li>
-<li>caching the formatted date</li>
-</ul>
+<p>Warp's timeout approach is safe to reuse as a cache mechanism for file descriptors because it does not use reference counters. However, we cannot simply reuse Warp's timeout code for some reasons:</p>
+<p>Each Haskell thread has its own status. So, status is not shared. But we would like to cache file descriptors to avoid <code>open()</code> and <code>close()</code> by sharing. So, we need to search a file descriptor for a requested file from cached ones. Since this look-up should be fast, we should not use a list. You may think <code>Data.Map</code> can be used. Yes, its look-up is O(log N) but there are two reasons why we cannot use it:</p>
+<ol style="list-style-type: decimal">
+<li><code>Data.Map</code> is a finite map which cannot contain multiple values for a single key.</li>
+<li><code>Data.Map</code> does not provide a fast pruning method.</li>
+</ol>
+<p>Problem 1: because requests are received concurrently, two or more file descriptors for the same file may be opened. So, we need to store multiple file descriptors for a single file name. We can solve this by re-implementing <code>Data.Map</code> to hold a non-empty list. This is technically called a &quot;multimap&quot;.</p>
+<p>Problem 2: <code>Data.Map</code> is based on a binary search tree called &quot;weight balanced tree&quot;. To the best of my best knowledge, there is no way to prune the tree directly. You may also think that we can convert the tree to a list (<code>toList</code>), then prune it, and convert the list back to a new tree (<code>fromList</code>). The cost of the first two operations is O(N) but that of the last one is O(N log N) unfortunately.</p>
+<p>One day, I remembered Exercise 3.9 of &quot;Purely Functional Data Structure&quot; - to implement <code>fromOrdList</code> which constructs a red-black tree from an ordered list in O(N). My friends and I have a study meeting on this book every month. To solve this problem, one guy found a paper by Ralf Hinze, &quot;Constructing Red-Black Trees&quot;. If you want to know its concrete algorithm, please read this paper.</p>
+<p>Since red-black trees are binary search trees, we can implement multimap by combining it and non-empty lists. Fortunately, the list created with <code>toList</code> is sorted. So, we can use <code>fromOrdList</code> to convert the sorted list to a new red-black tree. Now we have a multimap whose look-up is O(log N) and pruning is O(N).</p>
+<p>The cache mechanism has already been merged into the master branch of Warp, and is awaiting release.</p>
 <h2 id="future-work">Future work</h2>
 <ul>
 <li>lock free memory allocation</li>
 </ul>
-<h2 id="profiling-and-benchmarking">Profiling and benchmarking</h2>
-<p>Each item should be included in other chapters.</p>
-<ul>
-<li>weighttp (done)</li>
-<li>GHC profiler</li>
-<li>strace (done)</li>
-<li>eventlog</li>
-<li>prof</li>
-<li>tcpdump (done)</li>
-</ul>
+<div class="figure">
+<img src="eventlog.png" alt="eventlog" /><p class="caption">eventlog</p>
+</div>
 <h2 id="conclusion">Conclusion</h2>
