@@ -1,6 +1,6 @@
 <h1 id="warp">Warp</h1>
 <p>Authors: Michael Snoyman and Kazu Yamamoto</p>
-<p>Warp is a high-performance library of HTTP server side in Haskell, a purely functional programming language. Both Yesod, a web application framework, and Mighttpd, an HTTP server, are implemented over Warp. According to our throughput benchmark, Mighttpd provides performance on par with nginx. This article will explain the architecture of Warp and how we improved its performance.</p>
+<p>Warp is a high-performance library of HTTP server side in Haskell, a purely functional programming language. Both Yesod, a web application framework, and Mighttpd, an HTTP server, are implemented over Warp. According to our throughput benchmark, Mighttpd provides performance on par with nginx. This article will explain the architecture of Warp and how we improved its performance. Warp can run on many platforms including Linux, BSD variants, MacOS, and Windows. To make our explanation simple, however, we will talk about Linux only for the rest of this article.</p>
 <h2 id="network-programming-in-haskell">Network programming in Haskell</h2>
 <p>Some people may still misunderstand that functional programming languages are slow or impractical. However, to our best knowledge, Haskell provides the best scheme for network programming. This is because that GHC (Glasgow Haskell Compiler), the flagship compiler of Haskell, provides lightweight and robust user thread (or sometime called green thread). In this section, we will briefly explain history of network programming in server side.</p>
 <h3 id="native-threads">Native threads</h3>
@@ -72,10 +72,12 @@
 <li>Specialization and avoiding re-calculation</li>
 <li>Avoiding locks</li>
 </ol>
-<p>If a system call is issued, CPU time is given to kernel and all user threads stop. So, we need to use as fewe system calls as possible. For a HTTP session to get a static file, Warp calls <code>recv()</code>, <code>send()</code> and <code>sendfile()</code> only (Fig warp.png). <code>open()</code>, <code>stat()</code>, <code>close()</code> and other system calls can be committed thanks to cache mechanism described later.</p>
-<p>TBD</p>
-<p>TBD</p>
-<p>To make our explanation simple, we will talk about Linux only for the rest of this article.</p>
+<p>Idea 1: if a system call is issued, CPU time is given to kernel and all user threads stop. So, we need to use as fewe system calls as possible. For a HTTP session to get a static file, Warp calls <code>recv()</code>, <code>send()</code> and <code>sendfile()</code> only (Fig warp.png). <code>open()</code>, <code>stat()</code>, <code>close()</code> and other system calls can be committed thanks to cache mechanism described later.</p>
+<p>We can use <code>strace</code> to see what system calls are actually used. When we observed behavior of <code>nginx</code> with <code>strace</code>, we noticed that it uses <code>accept4()</code>, about which we don't know at that time.</p>
+<p>Using Haskell's standard network library, a listening socket is created with the non-blocking flag set. When a new connection is accepted from the listening socket, it is necessary to set the corresponding socket as non-blocking, too. The <code>network</code> package implements this by calling <code>fcntl()</code> twice: one is to get the current flags and the other is to set the flags with the non-blocking flag <em>ORed</em>.</p>
+<p>On Linux, the non-block flag of a connected socket is always unset even if its listening socket is non-blocking. The <code>accept4()</code> system call is an extension version of <code>accept()</code> on Linux. It can set the non-blocking flag when accepting. So, if we use <code>accept4()</code>, we can avoid two unnecessary <code>fcntl()</code>s. Our patch to use <code>accept4()</code> on Linux has been already merged to the network library.</p>
+<p>Idea 2: TBD</p>
+<p>Idea 3: TBD</p>
 <h2 id="http-request-parser">HTTP request parser</h2>
 <ul>
 <li>Parser generator vs handmade parser</li>
@@ -96,11 +98,11 @@
 </ul>
 <h3 id="sending-header-and-body-together">sending header and body together</h3>
 <p>When we measured the performance of Warp, we always did it with high concurrency. That is, we always make multiple connections at the same time. It gave us a good result. However, when we set the number of concurrency to 1, we found Warp is really really slow.</p>
-<p>We realized that this is because Warp uses the combination of writev() for header and sendfile() for body. In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx).</p>
+<p>Observing the results of <code>tcpdump</code>, we realized that this is because old Warp uses the combination of writev() for header and sendfile() for body. In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx).</p>
 <div class="figure">
 <img src="tcpdump.png" alt="Packet sequence of old Warp" /><p class="caption">Packet sequence of old Warp</p>
 </div>
-<p>To send them in a single TCP packet (when possible), we switched from <code>writev()</code> to <code>send()</code>. We use the <code>send()</code> system call with the <code>MSG_MORE</code> flag to store a header and the <code>sendfile()</code> system call to send both the stored header and a file. This made the throughput at least 100 times faster.</p>
+<p>To send them in a single TCP packet (when possible), new Warp switched from <code>writev()</code> to <code>send()</code>. It uses the <code>send()</code> system call with the <code>MSG_MORE</code> flag to store a header and the <code>sendfile()</code> system call to send both the stored header and a file. This made the throughput at least 100 times faster.</p>
 <h2 id="clean-up-with-timers">Clean-up with timers</h2>
 <h3 id="for-connections">For connections</h3>
 <ul>
@@ -128,20 +130,18 @@
 <li>avoiding gettimeofday()</li>
 <li>caching the formatted date</li>
 </ul>
-<h2 id="other-tips">Other tips</h2>
+<h2 id="future-work">Future work</h2>
 <ul>
-<li>accept4</li>
-<li>char8</li>
-<li>pessimistic read</li>
+<li>lock free memory allocation</li>
 </ul>
 <h2 id="profiling-and-benchmarking">Profiling and benchmarking</h2>
 <p>Each item should be included in other chapters.</p>
 <ul>
 <li>weighttp (done)</li>
 <li>GHC profiler</li>
-<li>strace</li>
+<li>strace (done)</li>
 <li>eventlog</li>
 <li>prof</li>
-<li>tcpdump</li>
+<li>tcpdump (done)</li>
 </ul>
 <h2 id="conclusion">Conclusion</h2>

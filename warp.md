@@ -10,6 +10,10 @@ According to our throughput benchmark,
 Mighttpd provides performance on par with nginx.
 This article will explain
 the architecture of Warp and how we improved its performance.
+Warp can run on many platforms
+including Linux, BSD variants, MacOS, and Windows.
+To make our explanation simple, however, we will talk about Linux only
+for the rest of this article.
 
 ## Network programming in Haskell
 
@@ -209,7 +213,7 @@ There are three key ideas to implement high-performance server in Haskell:
 2. Specialization and avoiding re-calculation
 3. Avoiding locks
 
-If a system call is issued, 
+Idea 1: if a system call is issued, 
 CPU time is given to kernel and all user threads stop.
 So, we need to use as fewe system calls as possible.
 For a HTTP session to get a static file,
@@ -217,12 +221,29 @@ Warp calls `recv()`, `send()` and `sendfile()` only (Fig warp.png).
 `open()`, `stat()`, `close()` and other system calls can be committed
 thanks to cache mechanism described later.
 
-TBD
+We can use `strace` to see what system calls are actually used.
+When we observed behavior of `nginx` with `strace`, 
+we noticed that it uses `accept4()`, about which we don't know at that time.
 
-TBD
+Using Haskell's standard network library, 
+a listening socket is created with the non-blocking flag set.
+When a new connection is accepted from the listening socket,
+it is necessary to set the corresponding socket as non-blocking, too.
+The `network` package implements this by calling `fcntl()` twice:
+one is to get the current flags and the other is to set
+the flags with the non-blocking flag *ORed*.
 
-To make our explanation simple, we will talk about Linux only
-for the rest of this article.
+On Linux, the non-block flag of a connected socket
+is always unset even if its listening socket is non-blocking.
+The `accept4()` system call is an extension version of `accept()` on Linux.
+It can set the non-blocking flag when accepting.
+So, if we use `accept4()`, we can avoid two unnecessary `fcntl()`s.
+Our patch to use `accept4()` on Linux has been already merged to
+the network library.
+
+Idea 2: TBD
+
+Idea 3: TBD
 
 ## HTTP request parser
 
@@ -254,15 +275,16 @@ It gave us a good result.
 However, when we set the number of concurrency to 1, 
 we found Warp is really really slow.
 
-We realized that this is because Warp uses
+Observing the results of `tcpdump`, 
+we realized that this is because old Warp uses
 the combination of writev() for header and sendfile() for body.
 In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx).
 
 ![Packet sequence of old Warp](tcpdump.png)
 
 To send them in a single TCP packet (when possible),
-we switched from `writev()` to `send()`.
-We use the `send()` system call with the `MSG_MORE` flag to store a header
+new Warp switched from `writev()` to `send()`.
+It uses the `send()` system call with the `MSG_MORE` flag to store a header
 and the `sendfile()` system call to send both the stored header and a file.
 This made the throughput at least 100 times faster.
 
@@ -300,11 +322,9 @@ Need a fig
 - avoiding gettimeofday()
 - caching the formatted date
 
-## Other tips
+## Future work
 
-- accept4
-- char8
-- pessimistic read
+- lock free memory allocation
 
 ## Profiling and benchmarking
 
@@ -312,9 +332,9 @@ Each item should be included in other chapters.
 
 - weighttp (done)
 - GHC profiler
-- strace
+- strace (done)
 - eventlog
 - prof
-- tcpdump
+- tcpdump (done)
 
 ## Conclusion
