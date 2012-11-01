@@ -91,7 +91,7 @@ However, it does not resolve the issue of programs having poor clarity.
 ### User threads
 
 GHC's user threads can be used to solve the code clarity.
-They are implemented over an event-driven IO manager.
+They are implemented over an event-driven IO manager in GHC's runtime system.
 Starndard libraries of Haskell use non-blocking system calls
 so that they can cooperate with the IO manager.
 GHC's user threads are lightweight: 
@@ -115,6 +115,12 @@ like traditional thread programming
 while keeping high performance (Fig XXX).
 
 ![User threads](4.png)
+
+As of this writing, Mighttpd uses the prefork technique to fork processes
+to utilize cores and Warp does not have this functionality.
+Haskell community is now developing parallel IO manager.
+If it will be merged to GHC, Warp itself can use this architecture
+without any modifications.
 
 ## Warp's architecture
 
@@ -213,7 +219,9 @@ There are three key ideas to implement high-performance server in Haskell:
 2. Specialization and avoiding re-calculation
 3. Avoiding locks
 
-Idea 1: if a system call is issued, 
+### Issuing as few system calls as possible
+
+If a system call is issued, 
 CPU time is given to kernel and all user threads stop.
 So, we need to use as fewe system calls as possible.
 For a HTTP session to get a static file,
@@ -241,9 +249,16 @@ So, if we use `accept4()`, we can avoid two unnecessary `fcntl()`s.
 Our patch to use `accept4()` on Linux has been already merged to
 the network library.
 
-Idea 2: TBD
+### Specialization and avoiding re-calculation
 
-Idea 3: TBD
+GHC profiling
+criterion
+Char8
+http-date
+
+### Avoiding locks
+
+TBD
 
 ## HTTP request parser
 

@@ -24,12 +24,13 @@
 <p>One web server that uses this architecture is nginx. Node.js used the event-driven architecture in the past but it also implemented this scheme recently.</p>
 <p>The advantage of this architecture is that it utilizes all cores and improves performance. However, it does not resolve the issue of programs having poor clarity.</p>
 <h3 id="user-threads">User threads</h3>
-<p>GHC's user threads can be used to solve the code clarity. They are implemented over an event-driven IO manager. Starndard libraries of Haskell use non-blocking system calls so that they can cooperate with the IO manager. GHC's user threads are lightweight: modern computers can run 100,000 user threads smoothly. They are robust: even asynchronous exceptions are catch (we explain this later in detail).</p>
+<p>GHC's user threads can be used to solve the code clarity. They are implemented over an event-driven IO manager in GHC's runtime system. Starndard libraries of Haskell use non-blocking system calls so that they can cooperate with the IO manager. GHC's user threads are lightweight: modern computers can run 100,000 user threads smoothly. They are robust: even asynchronous exceptions are catch (we explain this later in detail).</p>
 <p>Some languages and libraries provided user threads in the past, but they are not commonly used now because they are not lightweight or are not robust. But in Haskell, most computation is non-destructive. This means that almost all functions are thread-safe. GHC uses data allocation as a safe point of context switch of user threads. Because of functional programming style, new data are frequently created and it is known that <a href="http://www.aosabook.org/en/ghc.html">such data allocation is regulaly enough for context switching</a>.</p>
 <p>Use of lightweight threads makes it possible to write code with good clarity like traditional thread programming while keeping high performance (Fig XXX).</p>
 <div class="figure">
 <img src="4.png" alt="User threads" /><p class="caption">User threads</p>
 </div>
+<p>As of this writing, Mighttpd uses the prefork technique to fork processes to utilize cores and Warp does not have this functionality. Haskell community is now developing parallel IO manager. If it will be merged to GHC, Warp itself can use this architecture without any modifications.</p>
 <h2 id="warps-architecture">Warp's architecture</h2>
 <p>Warp is an HTTP engine for WAI (Web Application Interface). It runs WAI applications over HTTP. As we described before both Yesod and Mighttpd are examples of WAI applications as illustrated in Fix XXX.</p>
 <div class="figure">
@@ -72,12 +73,15 @@
 <li>Specialization and avoiding re-calculation</li>
 <li>Avoiding locks</li>
 </ol>
-<p>Idea 1: if a system call is issued, CPU time is given to kernel and all user threads stop. So, we need to use as fewe system calls as possible. For a HTTP session to get a static file, Warp calls <code>recv()</code>, <code>send()</code> and <code>sendfile()</code> only (Fig warp.png). <code>open()</code>, <code>stat()</code>, <code>close()</code> and other system calls can be committed thanks to cache mechanism described later.</p>
+<h3 id="issuing-as-few-system-calls-as-possible">Issuing as few system calls as possible</h3>
+<p>If a system call is issued, CPU time is given to kernel and all user threads stop. So, we need to use as fewe system calls as possible. For a HTTP session to get a static file, Warp calls <code>recv()</code>, <code>send()</code> and <code>sendfile()</code> only (Fig warp.png). <code>open()</code>, <code>stat()</code>, <code>close()</code> and other system calls can be committed thanks to cache mechanism described later.</p>
 <p>We can use <code>strace</code> to see what system calls are actually used. When we observed behavior of <code>nginx</code> with <code>strace</code>, we noticed that it uses <code>accept4()</code>, about which we don't know at that time.</p>
 <p>Using Haskell's standard network library, a listening socket is created with the non-blocking flag set. When a new connection is accepted from the listening socket, it is necessary to set the corresponding socket as non-blocking, too. The <code>network</code> package implements this by calling <code>fcntl()</code> twice: one is to get the current flags and the other is to set the flags with the non-blocking flag <em>ORed</em>.</p>
 <p>On Linux, the non-block flag of a connected socket is always unset even if its listening socket is non-blocking. The <code>accept4()</code> system call is an extension version of <code>accept()</code> on Linux. It can set the non-blocking flag when accepting. So, if we use <code>accept4()</code>, we can avoid two unnecessary <code>fcntl()</code>s. Our patch to use <code>accept4()</code> on Linux has been already merged to the network library.</p>
-<p>Idea 2: TBD</p>
-<p>Idea 3: TBD</p>
+<h3 id="specialization-and-avoiding-re-calculation">Specialization and avoiding re-calculation</h3>
+<p>GHC profiling criterion Char8 http-date</p>
+<h3 id="avoiding-locks">Avoiding locks</h3>
+<p>TBD</p>
 <h2 id="http-request-parser">HTTP request parser</h2>
 <ul>
 <li>Parser generator vs handmade parser</li>
