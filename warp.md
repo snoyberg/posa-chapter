@@ -130,7 +130,7 @@ the most right one is the type of return value.
 So, we can interpret the definition
 as an application takes `Request` and returns `Response`.
 
-After accepting a new connection, a dedicated user thread is spawn for the
+After accepting a new HTTP connection, a dedicated user thread is spawn for the
 connection.
 It first receives an HTTP request from a client
 and parses it to `Request`.
@@ -142,22 +142,26 @@ This is illustrated in Fix XXX.
 
 ![Warp](warp.png)
 
-The user thread repeats this procedure and terminates by itself when
+The user thread repeats this procedure if necessary and terminates by itself when
 the connection is closed by the peer.
 
 ## Performance of Warp
 
 Before we explain how to improve the performance of Warp,
 we would like to show the results of our benchmark.
-We measured throughput of Mighttpd 2.8.2 and nginx 1.2.4.
+We measured throughput of Mighttpd 2.8.2 (with Warp x.x.x) and nginx 1.2.4.
 Our benchmark environment is as follows:
 
 - One "12 cores" machine (Intel Xeon E5645, two sockets, 6 cores per 1 CPU, two QPI between two CPUs)
 - Linux version 3.2.0 (Ubuntu 12.04 LTS), which is running directly on the machine (i.e. without a hypervisor)
 
 We tested several benchmark tools in the past and
-our favorite one is `weighttp`. 
-It is based on the `epoll` system call family and can use
+our favorite one was `httperf`.
+Since it uses the `select()` system call and is just a single process program,
+it reaches its performance limits when we try to measure HTTP servers on
+multi-cores.
+So, we switched to `weighttp`, which 
+is based on the `epoll` system call family and can use
 multiple native threads. 
 We used `weighttp` as follows:
 
@@ -197,16 +201,34 @@ Here is the result:
 X-axis is the number of workers and y-axis means throughput
 whose unit is requests per second.
 
-## Lesson learned
+## Key ideas
+
+There are three key ideas to implement high-performance server in Haskell:
 
 1. Issuing as few system calls as possible
 2. Specialization and avoiding re-calculation
 3. Avoiding locks
 
+If a system call is issued, 
+CPU time is given to kernel and all user threads stop.
+So, we need to use as fewe system calls as possible.
+For a HTTP session to get a static file,
+Warp calls `recv()`, `send()` and `sendfile()` only (Fig warp.png).
+`open()`, `stat()`, `close()` and other system calls can be committed
+thanks to cache mechanism described later.
+
+TBD
+
+TBD
+
+To make our explanation simple, we will talk about Linux only
+for the rest of this article.
+
 ## HTTP request parser
 
 - Parser generator vs handmade parser
-- From "Warp: A Haskell Web Server"?
+- No timeout care thanks to timeout manager
+-- From "Warp: A Haskell Web Server"?
 - Conduit
 
 ## HTTP response builder
@@ -224,15 +246,34 @@ whose unit is requests per second.
 
 ### sending header and body together
 
-- http://www.yesodweb.com/blog/2012/09/header-body
+
+When we measured the performance of Warp,
+we always did it with high concurrency.
+That is, we always make multiple connections at the same time.
+It gave us a good result.
+However, when we set the number of concurrency to 1, 
+we found Warp is really really slow.
+
+We realized that this is because Warp uses
+the combination of writev() for header and sendfile() for body.
+In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx).
+
+![Packet sequence of old Warp](tcpdump.png)
+
+To send them in a single TCP packet (when possible),
+we switched from `writev()` to `send()`.
+We use the `send()` system call with the `MSG_MORE` flag to store a header
+and the `sendfile()` system call to send both the stored header and a file.
+This made the throughput at least 100 times faster.
 
 ## Clean-up with timers
 
 ### For connections
 
 - Requirements
-- System.Timeout.timeout
-- MVar vs IORef
+- System.Timeout.timeout (not scale because one timeout thread per thread)
+- MVar (slow because homebrew spin lock is used)
+- IORef
 - Its algorithm
 
 Need a fig
@@ -248,7 +289,7 @@ Need a fig
 
 Need a fig
 
-## Logging
+## Logging (xxx necessary?)
 
 - Handle
 - From the Mighty article in Monad.Reader
@@ -267,8 +308,10 @@ Need a fig
 
 ## Profiling and benchmarking
 
+Each item should be included in other chapters.
+
+- weighttp (done)
 - GHC profiler
-- httperf/weighttp
 - strace
 - eventlog
 - prof

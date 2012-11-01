@@ -38,18 +38,18 @@
 <p>The type of WAI applications is as follows:</p>
 <pre><code>type Application = Request -&gt; ResourceT IO Response</code></pre>
 <p>In Haskell, argument types of function are separated by right arrows and the most right one is the type of return value. So, we can interpret the definition as an application takes <code>Request</code> and returns <code>Response</code>.</p>
-<p>After accepting a new connection, a dedicated user thread is spawn for the connection. It first receives an HTTP request from a client and parses it to <code>Request</code>. Then, Warp gives the <code>Request</code> to an application and takes a <code>Response</code> from it. Finally, Warp builds an HTTP response based on <code>Response</code> and sends it back to the client. This is illustrated in Fix XXX.</p>
+<p>After accepting a new HTTP connection, a dedicated user thread is spawn for the connection. It first receives an HTTP request from a client and parses it to <code>Request</code>. Then, Warp gives the <code>Request</code> to an application and takes a <code>Response</code> from it. Finally, Warp builds an HTTP response based on <code>Response</code> and sends it back to the client. This is illustrated in Fix XXX.</p>
 <div class="figure">
 <img src="warp.png" alt="Warp" /><p class="caption">Warp</p>
 </div>
-<p>The user thread repeats this procedure and terminates by itself when the connection is closed by the peer.</p>
+<p>The user thread repeats this procedure if necessary and terminates by itself when the connection is closed by the peer.</p>
 <h2 id="performance-of-warp">Performance of Warp</h2>
-<p>Before we explain how to improve the performance of Warp, we would like to show the results of our benchmark. We measured throughput of Mighttpd 2.8.2 and nginx 1.2.4. Our benchmark environment is as follows:</p>
+<p>Before we explain how to improve the performance of Warp, we would like to show the results of our benchmark. We measured throughput of Mighttpd 2.8.2 (with Warp x.x.x) and nginx 1.2.4. Our benchmark environment is as follows:</p>
 <ul>
 <li>One &quot;12 cores&quot; machine (Intel Xeon E5645, two sockets, 6 cores per 1 CPU, two QPI between two CPUs)</li>
 <li>Linux version 3.2.0 (Ubuntu 12.04 LTS), which is running directly on the machine (i.e. without a hypervisor)</li>
 </ul>
-<p>We tested several benchmark tools in the past and our favorite one is <code>weighttp</code>. It is based on the <code>epoll</code> system call family and can use multiple native threads. We used <code>weighttp</code> as follows:</p>
+<p>We tested several benchmark tools in the past and our favorite one was <code>httperf</code>. Since it uses the <code>select()</code> system call and is just a single process program, it reaches its performance limits when we try to measure HTTP servers on multi-cores. So, we switched to <code>weighttp</code>, which is based on the <code>epoll</code> system call family and can use multiple native threads. We used <code>weighttp</code> as follows:</p>
 <pre><code>weighttp -n 100000 -c 1000 -t 3 -k http://127.0.0.1:8000/</code></pre>
 <p>This means that 1,000 HTTP connections are established and each connection sends 100 requests. 3 native threads are spawn to carry out these jobs..</p>
 <p>For all requests, the same <code>index.html</code> file is returned. We used <code>nginx</code>'s <code>index.html</code> whose size is 151 bytes. As &quot;127.0.0.1&quot; suggests, We measured web servers locally. We should have measured from a remote machine but we don't have suitable environment at this moment. (NOTE: I'm planning to do benchmark using two machines soon.)</p>
@@ -65,16 +65,21 @@
 <img src="multi-workers.png" alt="Performance of Warp and nginx" /><p class="caption">Performance of Warp and nginx</p>
 </div>
 <p>X-axis is the number of workers and y-axis means throughput whose unit is requests per second.</p>
-<h2 id="lesson-learned">Lesson learned</h2>
+<h2 id="key-ideas">Key ideas</h2>
+<p>There are three key ideas to implement high-performance server in Haskell:</p>
 <ol style="list-style-type: decimal">
 <li>Issuing as few system calls as possible</li>
 <li>Specialization and avoiding re-calculation</li>
 <li>Avoiding locks</li>
 </ol>
+<p>If a system call is issued, CPU time is given to kernel and all user threads stop. So, we need to use as fewe system calls as possible. For a HTTP session to get a static file, Warp calls <code>recv()</code>, <code>send()</code> and <code>sendfile()</code> only (Fig warp.png). <code>open()</code>, <code>stat()</code>, <code>close()</code> and other system calls can be committed thanks to cache mechanism described later.</p>
+<p>TBD</p>
+<p>TBD</p>
+<p>To make our explanation simple, we will talk about Linux only for the rest of this article.</p>
 <h2 id="http-request-parser">HTTP request parser</h2>
 <ul>
 <li>Parser generator vs handmade parser</li>
-<li>From &quot;Warp: A Haskell Web Server&quot;?</li>
+<li>No timeout care thanks to timeout manager -- From &quot;Warp: A Haskell Web Server&quot;?</li>
 <li>Conduit</li>
 </ul>
 <h2 id="http-response-builder">HTTP response builder</h2>
@@ -90,15 +95,19 @@
 <li>sendfile</li>
 </ul>
 <h3 id="sending-header-and-body-together">sending header and body together</h3>
-<ul>
-<li>http://www.yesodweb.com/blog/2012/09/header-body</li>
-</ul>
+<p>When we measured the performance of Warp, we always did it with high concurrency. That is, we always make multiple connections at the same time. It gave us a good result. However, when we set the number of concurrency to 1, we found Warp is really really slow.</p>
+<p>We realized that this is because Warp uses the combination of writev() for header and sendfile() for body. In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx).</p>
+<div class="figure">
+<img src="tcpdump.png" alt="Packet sequence of old Warp" /><p class="caption">Packet sequence of old Warp</p>
+</div>
+<p>To send them in a single TCP packet (when possible), we switched from <code>writev()</code> to <code>send()</code>. We use the <code>send()</code> system call with the <code>MSG_MORE</code> flag to store a header and the <code>sendfile()</code> system call to send both the stored header and a file. This made the throughput at least 100 times faster.</p>
 <h2 id="clean-up-with-timers">Clean-up with timers</h2>
 <h3 id="for-connections">For connections</h3>
 <ul>
 <li>Requirements</li>
-<li>System.Timeout.timeout</li>
-<li>MVar vs IORef</li>
+<li>System.Timeout.timeout (not scale because one timeout thread per thread)</li>
+<li>MVar (slow because homebrew spin lock is used)</li>
+<li>IORef</li>
 <li>Its algorithm</li>
 </ul>
 <p>Need a fig</p>
@@ -108,7 +117,7 @@
 <li>Red black tree</li>
 </ul>
 <p>Need a fig</p>
-<h2 id="logging">Logging</h2>
+<h2 id="logging-xxx-necessary">Logging (xxx necessary?)</h2>
 <ul>
 <li>Handle</li>
 <li>From the Mighty article in Monad.Reader</li>
@@ -126,9 +135,10 @@
 <li>pessimistic read</li>
 </ul>
 <h2 id="profiling-and-benchmarking">Profiling and benchmarking</h2>
+<p>Each item should be included in other chapters.</p>
 <ul>
+<li>weighttp (done)</li>
 <li>GHC profiler</li>
-<li>httperf/weighttp</li>
 <li>strace</li>
 <li>eventlog</li>
 <li>prof</li>
