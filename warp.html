@@ -1,10 +1,10 @@
 <h1 id="warp">Warp</h1>
 <p>Authors: Michael Snoyman and Kazu Yamamoto</p>
-<p>Warp is a high-performance library of HTTP server side in Haskell, a purely functional programming language. Both Yesod, a web application framework, and Mighttpd, an HTTP server, are implemented over Warp. According to our throughput benchmark, Mighttpd provides performance on par with nginx. This article will explain the architecture of Warp and how we improved its performance. Warp can run on many platforms including Linux, BSD variants, MacOS, and Windows. To make our explanation simple, however, we will talk about Linux only for the rest of this article.</p>
+<p>Warp is a high-performance library of HTTP server side in Haskell, a purely functional programming language. Both Yesod, a web application framework, and <code>mighty</code>, an HTTP server, are implemented over Warp. According to our throughput benchmark, <code>mighty</code> provides performance on par with nginx. This article will explain the architecture of Warp and how we improved its performance. Warp can run on many platforms including Linux, BSD variants, MacOS, and Windows. To make our explanation simple, however, we will talk about Linux only for the rest of this article.</p>
 <h2 id="network-programming-in-haskell">Network programming in Haskell</h2>
 <p>Some people may still misunderstand that functional programming languages are slow or impractical. However, to our best knowledge, Haskell provides the best scheme for network programming. This is because that GHC (Glasgow Haskell Compiler), the flagship compiler of Haskell, provides lightweight and robust user thread (or sometime called green thread). In this section, we will briefly explain history of network programming in server side.</p>
 <h3 id="native-threads">Native threads</h3>
-<p>Traditional servers use a technique called thread programming. In this architecture, each connection is handled by a single process or native thread.</p>
+<p>Traditional servers use a technique called thread programming. In this architecture, each connection is handled by a single process or native thread (or sometime called OS thread)</p>
 <p>This architecture can be broken down by how to create processes or native threads. When using a thread pool, multiple processes or native threads are created in advance. An example of this is the prefork mode in Apache. Otherwise, a process or native thread is spawn each time a connection is received. Fig XXX illustrates this.</p>
 <div class="figure">
 <img src="1.png" alt="Native threads" /><p class="caption">Native threads</p>
@@ -30,9 +30,9 @@
 <div class="figure">
 <img src="4.png" alt="User threads" /><p class="caption">User threads</p>
 </div>
-<p>As of this writing, Mighttpd uses the prefork technique to fork processes to utilize cores and Warp does not have this functionality. Haskell community is now developing parallel IO manager. If it will be merged to GHC, Warp itself can use this architecture without any modifications.</p>
+<p>As of this writing, <code>mighty</code> uses the prefork technique to fork processes to utilize cores and Warp does not have this functionality. Haskell community is now developing parallel IO manager. If it will be merged to GHC, Warp itself can use this architecture without any modifications.</p>
 <h2 id="warps-architecture">Warp's architecture</h2>
-<p>Warp is an HTTP engine for WAI (Web Application Interface). It runs WAI applications over HTTP. As we described before both Yesod and Mighttpd are examples of WAI applications as illustrated in Fix XXX.</p>
+<p>Warp is an HTTP engine for WAI (Web Application Interface). It runs WAI applications over HTTP. As we described before both Yesod and <code>mighty</code> are examples of WAI applications as illustrated in Fix XXX.</p>
 <div class="figure">
 <img src="wai.png" alt="WAI" /><p class="caption">WAI</p>
 </div>
@@ -45,7 +45,7 @@
 </div>
 <p>The user thread repeats this procedure if necessary and terminates by itself when the connection is closed by the peer.</p>
 <h2 id="performance-of-warp">Performance of Warp</h2>
-<p>Before we explain how to improve the performance of Warp, we would like to show the results of our benchmark. We measured throughput of Mighttpd 2.8.2 (with Warp x.x.x) and nginx 1.2.4. Our benchmark environment is as follows:</p>
+<p>Before we explain how to improve the performance of Warp, we would like to show the results of our benchmark. We measured throughput of <code>mighty</code> 2.8.2 (with Warp x.x.x) and nginx 1.2.4. Our benchmark environment is as follows:</p>
 <ul>
 <li>One &quot;12 cores&quot; machine (Intel Xeon E5645, two sockets, 6 cores per 1 CPU, two QPI between two CPUs)</li>
 <li>Linux version 3.2.0 (Ubuntu 12.04 LTS), which is running directly on the machine (i.e. without a hypervisor)</li>
@@ -55,7 +55,7 @@
 <p>This means that 1,000 HTTP connections are established and each connection sends 100 requests. 3 native threads are spawn to carry out these jobs..</p>
 <p>For all requests, the same <code>index.html</code> file is returned. We used <code>nginx</code>'s <code>index.html</code> whose size is 151 bytes. As &quot;127.0.0.1&quot; suggests, We measured web servers locally. We should have measured from a remote machine but we don't have suitable environment at this moment. (NOTE: I'm planning to do benchmark using two machines soon.)</p>
 <p>Since Linux has many control parameters, we need to configure the parameters carefully. You can find a good introduction about Linux parameter tuning in <a href="http://gwan.com/en_apachebench_httperf.html">ApacheBench &amp; HTTPerf</a>.</p>
-<p>We carefully configured both Mighty and <code>nginx</code> as follows:</p>
+<p>We carefully configured both <code>mighty</code> and <code>nginx</code> as follows:</p>
 <ul>
 <li>using file descriptor cache</li>
 <li>no logging</li>
@@ -81,6 +81,9 @@
 <h3 id="specialization-and-avoiding-re-calculation">Specialization and avoiding re-calculation</h3>
 <p>GHC profiling criterion Char8 http-date</p>
 <h3 id="avoiding-locks">Avoiding locks</h3>
+<ul>
+<li>Talking about parallel IO manager</li>
+</ul>
 <p>TBD</p>
 <h2 id="http-request-parser">HTTP request parser</h2>
 <ul>
@@ -108,8 +111,10 @@
 </div>
 <p>To send them in a single TCP packet (when possible), new Warp switched from <code>writev()</code> to <code>send()</code>. It uses the <code>send()</code> system call with the <code>MSG_MORE</code> flag to store a header and the <code>sendfile()</code> system call to send both the stored header and a file. This made the throughput at least 100 times faster.</p>
 <h2 id="clean-up-with-timers">Clean-up with timers</h2>
-<h3 id="for-connections">For connections</h3>
-<p>To prevent slowloris attacks, Warp kills a user thread, which communicates with a client, if the client does not send a significant amount of data for a specified period (30 seconds by default). Tthe heart of Warp's timeout system is the following two points:</p>
+<h3 id="timers-for-connections">Timers for connections</h3>
+<p>To prevent slowloris attacks, Warp kills a user thread, which communicates with a client, if the client does not send a significant amount of data for a specified period (30 seconds by default).</p>
+<p>TBD: System.Timeout</p>
+<p>The heart of Warp's timeout system is the following two points:</p>
 <ul>
 <li>Double <code>IORef</code>s</li>
 <li>Safe swap and merge algorithm</li>
@@ -117,16 +122,16 @@
 <p>Suppose that status of connections is described as <code>Active</code> and <code>Inactive</code>. To clean up inactive connections, a dedicated Haskell thread, called the timeout manager, repeatedly inspects the status of each connection. If status is <code>Active</code>, the timeout manager turns it to <code>Inactive</code>. If <code>Inactive</code>, the timeout manager kills its associated Haskell thread.</p>
 <p>Each status is refereed by an <code>IORef</code>. To update status through this <code>IORef</code>, atomicity is not necessary because status is just overwritten. In addition to the timeout manager, each Haskell thread repeatedly turns its status to <code>Active</code> through its own <code>IORef</code> if its connection actively continues.</p>
 <p>To check all statuses easily, the timeout manager uses a list of the <code>IORef</code> to status. A Haskell thread spawned for a new connection tries to 'cons' its new <code>IORef</code> for an <code>Active</code> status to the list. So, the list is a critical section and we need atomicity to keep the list consistent.</p>
-<p>A standard way to keep consistency in Haskell is <code>MVar</code>. But as Michael Snoyman pointed out in &quot;<a href="http://steve.vinoski.net/pdf/IC-Warp_a_Haskell_Web_Server.pdf">Warp: A Haskell Web Server</a>&quot;, <code>MVar</code> (in threaded RTS) is slow. This is because each <code>MVar</code> is protected with a home-brewed spin lock. So, he used another <code>IORef</code> to refer the list and <code>atomicModifyIORef</code> to manipulate it. <code>atomicModifyIORef</code> is implemented via CAS (Compare-and-Swap), which is much faster than spin locks.</p>
+<div class="figure">
+<img src="timeout.png" alt="A list of status" /><p class="caption">A list of status</p>
+</div>
+<p>A standard way to keep consistency in Haskell is <code>MVar</code>. But <code>MVar</code> is slow because each <code>MVar</code> is protected with a home-brewed spin lock. So, he used another <code>IORef</code> to refer the list and <code>atomicModifyIORef</code> to manipulate it. <code>IORef</code> is a reference whose value can be destructively updated. <code>atomicModifyIORef</code> is a function to atomically update <code>IORef</code>'s values. It is fast since it is implemented via CAS (Compare-and-Swap), which is much faster than spin locks.</p>
 <p>The following is the outline of the safe swap and merge algorithm:</p>
-<pre><code>do xs &lt;- atomicModifyIORef ref (\ys -&gt; ([], ys)) -- swap with []
+<pre><code>do xs &lt;- atomicModifyIORef ref (\ys -&gt; ([], ys)) -- swap with an empty list, []
    xs&#39; &lt;- manipulates_status xs
    atomicModifyIORef ref (\ys -&gt; (merge xs&#39; ys, ()))</code></pre>
 <p>The timeout manager atomically swaps the list with an empty list. Then it manipulates the list by turning status and/or removing unnecessary status for killed Haskell threads. During this process, new connections may be created and their status are inserted with <code>atomicModifyIORef</code> by corresponding Haskell threads. Then, the timeout manager atomically merges the pruned list and the new list.</p>
-<div class="figure">
-<img src="timeout.png" alt="Timeout" /><p class="caption">Timeout</p>
-</div>
-<h3 id="for-file-descriptors">For file descriptors</h3>
+<h3 id="timers-for-file-descriptors">Timers for file descriptors</h3>
 <p>Warp's timeout approach is safe to reuse as a cache mechanism for file descriptors because it does not use reference counters. However, we cannot simply reuse Warp's timeout code for some reasons:</p>
 <p>Each Haskell thread has its own status. So, status is not shared. But we would like to cache file descriptors to avoid <code>open()</code> and <code>close()</code> by sharing. So, we need to search a file descriptor for a requested file from cached ones. Since this look-up should be fast, we should not use a list. You may think <code>Data.Map</code> can be used. Yes, its look-up is O(log N) but there are two reasons why we cannot use it:</p>
 <ol style="list-style-type: decimal">
@@ -139,11 +144,16 @@
 <p>Since red-black trees are binary search trees, we can implement multimap by combining it and non-empty lists. Fortunately, the list created with <code>toList</code> is sorted. So, we can use <code>fromOrdList</code> to convert the sorted list to a new red-black tree. Now we have a multimap whose look-up is O(log N) and pruning is O(N).</p>
 <p>The cache mechanism has already been merged into the master branch of Warp, and is awaiting release.</p>
 <h2 id="future-work">Future work</h2>
-<p>We have some items to improve Warp in the future but we will explain memory allocation only here. When receiving and sending packets, buffers are allocated. We think that these memory allocations may be the current bottleneck. GHC runtime system uses <code>pthread_mutex_lock</code> to obtain a large object (larger than 409 bytes in 64 bit machines).</p>
-<p>We tried to measure how much memory allocation for HTTP response header consume time. We copied the <code>create</code> function of <code>ByteString</code> to Warp and surrounded <code>mallocByteString</code> with <code>Debug.Trace.traceEventIO</code>. Then we complied Mighty with it and took eventlog. The result eventlog is illustrated as follows:</p>
+<p>We have some items to improve Warp in the future but we will explain two here.</p>
+<h3 id="memory-allocation">Memory allocation</h3>
+<p>When receiving and sending packets, buffers are allocated. We think that these memory allocations may be the current bottleneck. GHC runtime system uses <code>pthread_mutex_lock</code> to obtain a large object (larger than 409 bytes in 64 bit machines).</p>
+<p>We tried to measure how much memory allocation for HTTP response header consume time. We copied the <code>create</code> function of <code>ByteString</code> to Warp and surrounded <code>mallocByteString</code> with <code>Debug.Trace.traceEventIO</code>. Then we complied <code>mighty</code> with it and took eventlog. The result eventlog is illustrated as follows:</p>
 <div class="figure">
 <img src="eventlog.png" alt="eventlog" /><p class="caption">eventlog</p>
 </div>
 <p>Brick red bars indicates the event created by <code>traceEventIO</code>. The area surrounded by two bars is the time consumed by <code>mallocByteString</code>. It is about 1/10 of an HTTP session. We are confident that the same thing happens when allocating receiving buffers.</p>
-<p>TBD</p>
+<h3 id="new-thundering-herd">New thundering herd</h3>
+<p>Thundering herd is an old but new problem. Suppose that processes/native threads are pre-forked to share a listening socket. They call <code>accept()</code> on the socket. When a connection is created, old Linux and FreeBSD wakes up all of them. And only one can accept it and the others sleeps again. Since this causes many context switches, we face performance problem. This is called <em>thundering</em> <em>herd</em>. Recent Linux and FreeBSD wakes up only one process/native thread. So, this problem became a thing of the past.</p>
+<p>Recent network servers tend to use the <code>epoll</code>/<code>kqueue</code> family. If worker processes share a listen socket and they manipulate accept connections through the <code>epoll</code>/<code>kqueue</code> family, thundering herd appears again. This is because the semantics of the <code>epoll</code>/<code>kqueue</code> family is to notify all processes/native threads. <code>nginx</code> and <code>mighty</code> are victims of new thundering herd.</p>
+<p>The parallel IO manager is free from new thundering herd. In this architecture, only one IO manager accepts new connections through the <code>epoll</code> family. And other IO managers handle established connections.</p>
 <h2 id="conclusion">Conclusion</h2>

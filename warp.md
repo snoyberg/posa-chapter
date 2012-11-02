@@ -4,10 +4,10 @@ Authors: Michael Snoyman and Kazu Yamamoto
 
 Warp is a high-performance library of HTTP server side in Haskell,
 a purely functional programming language.
-Both Yesod, a web application framework, and Mighttpd, an HTTP server,
+Both Yesod, a web application framework, and `mighty`, an HTTP server,
 are implemented over Warp.
 According to our throughput benchmark,
-Mighttpd provides performance on par with nginx.
+`mighty` provides performance on par with nginx.
 This article will explain
 the architecture of Warp and how we improved its performance.
 Warp can run on many platforms
@@ -31,7 +31,7 @@ network programming in server side.
 
 Traditional servers use a technique called thread programming.
 In this architecture, each connection is handled
-by a single process or native thread.
+by a single process or native thread (or sometime called OS thread)
 
 This architecture can be broken down by how to create processes or native threads.
 When using a thread pool, multiple processes or native threads are created in advance.
@@ -116,7 +116,7 @@ while keeping high performance (Fig XXX).
 
 ![User threads](4.png)
 
-As of this writing, Mighttpd uses the prefork technique to fork processes
+As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality.
 Haskell community is now developing parallel IO manager.
 If it will be merged to GHC, Warp itself can use this architecture
@@ -126,7 +126,7 @@ without any modifications.
 
 Warp is an HTTP engine for WAI (Web Application Interface).
 It runs WAI applications over HTTP.
-As we described before both Yesod and Mighttpd are
+As we described before both Yesod and `mighty` are
 examples of WAI applications as illustrated in Fix XXX.
 
 ![WAI](wai.png)
@@ -159,7 +159,7 @@ the connection is closed by the peer.
 
 Before we explain how to improve the performance of Warp,
 we would like to show the results of our benchmark.
-We measured throughput of Mighttpd 2.8.2 (with Warp x.x.x) and nginx 1.2.4.
+We measured throughput of `mighty` 2.8.2 (with Warp x.x.x) and nginx 1.2.4.
 Our benchmark environment is as follows:
 
 - One "12 cores" machine (Intel Xeon E5645, two sockets, 6 cores per 1 CPU, two QPI between two CPUs)
@@ -193,7 +193,7 @@ we need to configure the parameters carefully.
 You can find a good introduction about
 Linux parameter tuning in [ApacheBench & HTTPerf](http://gwan.com/en_apachebench_httperf.html).
 
-We carefully configured both Mighty and `nginx` as follows:
+We carefully configured both `mighty` and `nginx` as follows:
 
 - using file descriptor cache
 - no logging
@@ -258,6 +258,8 @@ http-date
 
 ### Avoiding locks
 
+- Talking about parallel IO manager
+
 TBD
 
 ## HTTP request parser
@@ -305,12 +307,15 @@ This made the throughput at least 100 times faster.
 
 ## Clean-up with timers
 
-### For connections
+### Timers for connections
 
 To prevent slowloris attacks, Warp kills a user thread,
 which communicates with a client,
 if the client does not send a significant amount of data for a specified period (30 seconds by default).
-Tthe heart of Warp's timeout system is the following two points:
+
+TBD: System.Timeout
+
+The heart of Warp's timeout system is the following two points:
 
 - Double `IORef`s
 - Safe swap and merge algorithm
@@ -334,17 +339,21 @@ tries to 'cons' its new `IORef` for an `Active` status to the list.
 So, the list is a critical section and we need atomicity to keep
 the list consistent.
 
+![A list of status](timeout.png)
+
 A standard way to keep consistency in Haskell is `MVar`.
-But as Michael Snoyman pointed out in "[Warp: A Haskell Web Server](http://steve.vinoski.net/pdf/IC-Warp_a_Haskell_Web_Server.pdf)", `MVar` (in threaded RTS) is slow.
-This is because each `MVar` is protected with a home-brewed spin lock.
+But `MVar` is slow
+because each `MVar` is protected with a home-brewed spin lock.
 So, he used another `IORef` to refer the list and `atomicModifyIORef`
 to manipulate it.
-`atomicModifyIORef` is implemented via CAS (Compare-and-Swap),
+`IORef` is a reference whose value can be destructively updated.
+`atomicModifyIORef` is a function to atomically update `IORef`'s values.
+It is fast since it is implemented via CAS (Compare-and-Swap),
 which is much faster than spin locks.
 
 The following is the outline of the safe swap and merge algorithm:
 
-    do xs <- atomicModifyIORef ref (\ys -> ([], ys)) -- swap with []
+    do xs <- atomicModifyIORef ref (\ys -> ([], ys)) -- swap with an empty list, []
        xs' <- manipulates_status xs
        atomicModifyIORef ref (\ys -> (merge xs' ys, ()))
 
@@ -357,9 +366,7 @@ corresponding Haskell threads.
 Then, the timeout manager atomically merges
 the pruned list and the new list.
 
-![Timeout](timeout.png)
-
-### For file descriptors
+### Timers for file descriptors
 
 Warp's timeout approach is safe to reuse as a cache mechanism for
 file descriptors because it does not use reference counters.
@@ -413,7 +420,10 @@ Warp, and is awaiting release.
 ## Future work
 
 We have some items to improve Warp in the future but
-we will explain memory allocation only here.
+we will explain two here.
+
+### Memory allocation
+
 When receiving and sending packets, buffers are allocated.
 We think that these memory allocations may be the current bottleneck.
 GHC runtime system uses `pthread_mutex_lock`
@@ -423,7 +433,7 @@ We tried to measure how much memory allocation
 for HTTP response header consume time.
 We copied the `create` function of `ByteString` to Warp and
 surrounded `mallocByteString` with `Debug.Trace.traceEventIO`. 
-Then we complied Mighty with it and took eventlog.
+Then we complied `mighty` with it and took eventlog.
 The result eventlog is illustrated as follows:
 
 ![eventlog](eventlog.png)
@@ -433,6 +443,32 @@ The area surrounded by two bars is the time consumed by `mallocByteString`.
 It is about 1/10 of an HTTP session.
 We are confident that the same thing happens when allocating receiving buffers.
 
-TBD
+### New thundering herd
+
+Thundering herd is an old but new problem. 
+Suppose that processes/native threads are pre-forked to share a listening socket.
+They call `accept()` on the socket.
+When a connection is created, old Linux and FreeBSD
+wakes up all of them.
+And only one can accept it and the others sleeps again.
+Since this causes many context switches, 
+we face performance problem.
+This is called *thundering* *herd*.
+Recent Linux and FreeBSD wakes up only one process/native thread.
+So, this problem became a thing of the past.
+
+Recent network servers tend to use the `epoll`/`kqueue` family.
+If worker processes share a listen socket and
+they manipulate accept connections through the `epoll`/`kqueue` family,
+thundering herd appears again.
+This is because
+the semantics of the `epoll`/`kqueue` family is to notify
+all processes/native threads. 
+`nginx` and `mighty` are victims of new thundering herd.
+
+The parallel IO manager is free from new thundering herd.
+In this architecture,
+only one IO manager accepts new connections through the `epoll` family. 
+And other IO managers handle established connections.
 
 ## Conclusion
