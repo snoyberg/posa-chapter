@@ -52,7 +52,7 @@ So, performance gets poor.
 ### Event driven
 
 Recently, it is said that event-driven programming is 
-required to implement high performance servers.
+required to implement high-performance servers.
 In this architecture multiple connections are handled by a single process (Fix XXX).
 Lighttpd is an example of web server using this architecture.
 
@@ -113,7 +113,7 @@ new data are frequently created and it is known that
 Use of lightweight threads makes
 it possible to write code with good clarity
 like traditional thread programming
-while keeping high performance (Fig XXX).
+while keeping high-performance (Fig XXX).
 
 ![User threads](4.png)
 
@@ -325,26 +325,25 @@ in Section XXX and Section XXX.
 `ResponseBuilder` and `ResponseSource` are for sending
 dynamic contents created in memory.
 Each constructor includes both `Status` and `ResponseHeaders`.
-`ResponseHeaders` is defined as a pair of header field key and value.
+`ResponseHeaders` is defined as a list of a pair of header field key and value.
 
 ### Composer for HTTP response header
 
-The old composer for HTTP response header creates a `Builder`, 
-by appending the `Bytestring`s in the `Status`
-and the `ResponseHeaders`.
+The old composer builds HTTP response header with `Builder`, 
+rope-like data structure.
+First, it converts `Status` and each element of `ResponseHeaders`
+to `Builder`. This operation runs in O(1).
+Then, it concatenate them by repeating append one `Builder` to anther. 
+Thank to rope-like feature, each append operation also runs in O(1).
+Lastly, it packs an HTTP response header
+by copying data from `Builder` to a buffer in O(N).
 
-also appeared in the `ResponseBuilder` constructor.
-We can append two `Builder`s in O(1) and
-can copy the appended data to a buffer in O(N).
-
-Each append operation runs in O(1).
-The `Builder` is converted to a list of *packed* `ByteString`s
-and sent with `writev()`. 
-And then a file (HTTP response body) is sent with `sendfile()`.
-
-In many cases, the performance of the blaze builder is sufficient.
-But I suspected that it is not fast enough for
-high performance servers.
+In many cases, the performance of `Builder` is sufficient.
+But we experienced that it is not fast enough for
+high-performance servers.
+To eliminate the overhead of `Builder`,
+we implemented a special composer for HTTP response headerm
+by directly using `memcpy()`, a highly tuned byte copy function in C.
 
 ### Composer for HTTP response body
 
@@ -412,7 +411,7 @@ This function returns a value of `Maybe a` in the IO context.
 So, `timeout` returns `Nothing`
 if an action is completed in a specified time.
 Otherwise, a successful value is returned wrapped with `Just`.
-`timeout` eloquently shows how high Haskell's composability is.
+`timeout` eloquently shows how great Haskell's composability is.
 
 Unfortunately,
 `timeout` spawns a user thread to handle timeout.
