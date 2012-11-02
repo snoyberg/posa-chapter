@@ -7,7 +7,7 @@ a purely functional programming language.
 Both Yesod, a web application framework, and `mighty`, an HTTP server,
 are implemented over Warp.
 According to our throughput benchmark,
-`mighty` provides performance on par with nginx.
+`mighty` provides performance on par with `nginx`.
 This article will explain
 the architecture of Warp and how we improved its performance.
 Warp can run on many platforms
@@ -74,13 +74,14 @@ use of exception handling (although there are no exceptions in C).
 
 Many have hit upon the idea of creating
 N event-driven processes to utilize N cores (Fig XXX).
-Port 80 must be shared for web servers.
+Each process is called *worker*.
+A service port must be shared among workers.
 Using the prefork technique (please don't confuse with Apache's prefork mode),
 port sharing can be achieved by modifying code slightly.
 
 ![1 process per core](3.png)
 
-One web server that uses this architecture is nginx.
+One web server that uses this architecture is `nginx`.
 Node.js used the event-driven architecture in the past but
 it also implemented this scheme recently.
 
@@ -160,13 +161,13 @@ The user thread repeats this procedure
 if necessary and terminates by itself
 when the connection is closed by the peer.
 It is also killed by the dedicated user thread for timeout
-if a significant amount of data is not received in a specified period.
+if a significant amount of data is not received for a certain period.
 
 ## Performance of Warp
 
 Before we explain how to improve the performance of Warp,
 we would like to show the results of our benchmark.
-We measured throughput of `mighty` 2.8.2 (with Warp x.x.x) and nginx 1.2.4.
+We measured throughput of `mighty` 2.8.2 (with Warp x.x.x) and `nginx` 1.2.4.
 Our benchmark environment is as follows:
 
 - One "12 cores" machine (Intel Xeon E5645, two sockets, 6 cores per 1 CPU, two QPI between two CPUs)
@@ -213,7 +214,7 @@ eight workers(to our experience,
 three native thread is enough to measure 8 workers).
 Here is the result:
 
-![Performance of Warp and nginx](multi-workers.png)
+![Performance of Warp and `nginx`](multi-workers.png)
 
 X-axis is the number of workers and y-axis means throughput
 whose unit is requests per second.
@@ -234,7 +235,7 @@ So, we need to use as few system calls as possible.
 For a HTTP session to get a static file,
 Warp calls `recv()`, `send()` and `sendfile()` only (Fig warp.png).
 `open()`, `stat()`, `close()` and other system calls can be committed
-thanks to cache mechanism described later.
+thanks to cache mechanism described in Section XXX.
 
 We can use `strace` to see what system calls are actually used.
 When we observed behavior of `nginx` with `strace`, 
@@ -258,10 +259,38 @@ the network library.
 
 ### Specialization and avoiding re-calculation
 
-GHC profiling
-criterion
-Char8
-http-date
+GHC provides profiling mechanism but it has a limitation:
+right profiling is possible
+if a program runs in foreground and it does not spawn child processes.
+So, if we want to profile live activities of servers,
+we need to implement special care for profiling.
+
+`mighty` has this mechanism.
+Suppose that N is the number of workers
+in the configuration file of `mighty`.
+If N is larger than or equal to 2, `mighty` creates N child processes
+and the parent process just works to deliver signals.
+However, if N is 1, `mighty` does not creates one child process.
+The executed process itself serves HTTP.
+Also, `mighty` stays its terminal if debug mode is on.
+
+When we took profile of `mighty`,
+we surprised that the standard function to format date string
+consumes most CPU time.
+As many know, an end HTTP server should return GMT date strings
+in header fields such as Date:, Last-Modified:, etc:
+
+    Date: Mon, 01 Oct 2012 07:38:50 GMT
+
+So, we implemented a special formatter to generate GMT date strings.
+Comparing the standard function and our specialized function with
+`criterion`, a standard benchmark library of Haskell,
+ours are much faster.
+But if an HTTP server accepts more than one request per second,
+the server repeats the same formatting again and again.
+So, we also implemented cache mechanism for date strings.
+
+TBD: reference to other parts.
 
 ### Avoiding locks
 
@@ -273,7 +302,7 @@ we need to identify locks and
 avoid locks if possible.
 It is worth pointing out that
 locks will become much more critical under
-the parallel IO managers.
+the parallel IO manager.
 We will talk how to identify and avoid locks
 in Section XXX and Section XXX.
 
@@ -327,13 +356,38 @@ how to cache file descriptors.
 
 ### Timers for connections
 
-To prevent slowloris attacks, a dedicated user thread kills a user thread,
-which communicates with a client,
-if the client does not send a significant amount of data for a specified period (30 seconds by default).
+To prevent slowloris attacks, 
+communication with a client should be canceled
+if the client does not send a significant amount of data
+for a certain period.
+Haskell provides a standard function called `timeout` 
+whose type is as follows:
 
-TBD: System.Timeout
+    Int -> IO a -> IO (Maybe a)
 
-The heart of Warp's timeout system is the following two points:
+The first argument is time to timeout in microsecond.
+The second argument is an action which handles input/output (IO).
+This function returns a value of `Maybe a` in the IO context.
+`Maybe` is defined as follows:
+
+    data Maybe a = Nothing | Just a
+
+`Nothing` means an error (without reason information) and 
+`Just` encloses a successful value `a`.
+So, `timeout` returns `Nothing`
+if an action is completed in a specified time.
+Otherwise, a successful value is returned wrapped with `Just`.
+`timeout` eloquently shows how high Haskell's composability is.
+
+Unfortunately,
+`timeout` spawns a user thread to handle timeout.
+To implement high-performance servers,
+we need to avoid to create a user thread for timeout
+for each connection.
+
+So, we implement a timeout system which uses only
+one user thread to handle timeout of all connections.
+Its heart is the following two points:
 
 - Double `IORef`s
 - Safe swap and merge algorithm
