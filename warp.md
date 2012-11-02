@@ -31,7 +31,7 @@ network programming in server side.
 
 Traditional servers use a technique called thread programming.
 In this architecture, each connection is handled
-by a single process or native thread (or sometime called OS thread)
+by a single process or native thread (or sometime called OS thread).
 
 This architecture can be broken down by how to create processes or native threads.
 When using a thread pool, multiple processes or native threads are created in advance.
@@ -41,7 +41,7 @@ Otherwise, a process or native thread is spawn each time a connection is receive
 ![Native threads](1.png)
 
 The advantage of this architecture is that clear code can be written
-because the code is not decided into event handlers.
+because the code is not divided into event handlers.
 Also, because the kernel assigns processes or
 native threads to available cores,
 we can balance utilization of cores.
@@ -53,7 +53,7 @@ So, performance gets poor.
 
 Recently, it is said that event-driven programming is 
 required to implement high-performance servers.
-In this architecture multiple connections are handled by a single process (Fix XXX).
+In this architecture multiple connections are handled by a single process (Fig XXX).
 Lighttpd is an example of web server using this architecture.
 
 ![Event driven](2.png)
@@ -84,7 +84,6 @@ port sharing can be achieved by modifying code slightly.
 One web server that uses this architecture is `nginx`.
 Node.js used the event-driven architecture in the past but
 it also implemented this scheme recently.
-
 The advantage of this architecture is
 that it utilizes all cores and improves performance. 
 However, it does not resolve the issue of programs having poor clarity.
@@ -98,14 +97,14 @@ so that they can cooperate with the IO manager.
 GHC's user threads are lightweight: 
 modern computers can run 100,000 user threads smoothly.
 They are robust: even asynchronous exceptions are catch
-(we explain this later in detail).
+(we explain this in Section XXX in detail).
 
 Some languages and libraries provided user threads in the past,
 but they are not commonly used now because they are not lightweight
 or are not robust.
 But in Haskell, most computation is non-destructive.
 This means that almost all functions are thread-safe.
-GHC uses data allocation as a safe point of context switch of user threads.
+GHC uses data allocation as a safe point to switch context of user threads.
 Because of functional programming style,
 new data are frequently created and it is known that 
 [such data allocation is regulaly enough for context switching](http://www.aosabook.org/en/ghc.html).
@@ -123,7 +122,7 @@ Haskell community is now developing parallel IO manager.
 A Haskell program with parallel IO manager is
 executed as a single process and
 multiple IO managers run as native threads to utilize cores.
-And user threads are executed on one of cores.
+And each user thread is executed on any one of cores.
 If it will be merged to GHC, Warp itself can use this architecture
 without any modifications.
 
@@ -132,7 +131,7 @@ without any modifications.
 Warp is an HTTP engine for WAI (Web Application Interface).
 It runs WAI applications over HTTP.
 As we described before both Yesod and `mighty` are
-examples of WAI applications as illustrated in Fix XXX.
+examples of WAI applications as illustrated in Fig XXX.
 
 ![WAI](wai.png)
 
@@ -143,17 +142,17 @@ The type of WAI applications is as follows:
 In Haskell, argument types of function are separated by right arrows and
 the most right one is the type of return value.
 So, we can interpret the definition
-as an application takes `Request` and returns `Response`.
+as a WAI application takes `Request` and returns `Response`.
 
 After accepting a new HTTP connection, a dedicated user thread is spawn for the
 connection.
 It first receives an HTTP request from a client
 and parses it to `Request`.
-Then, Warp gives the `Request` to an application and
+Then, Warp gives the `Request` to a WAI application and
 takes a `Response` from it.
 Finally, Warp builds an HTTP response based on `Response`
 and sends it back to the client.
-This is illustrated in Fix XXX.
+This is illustrated in Fig XXX.
 
 ![Warp](warp.png)
 
@@ -187,14 +186,14 @@ We used `weighttp` as follows:
 
 This means that 1,000 HTTP connections are established and
 each connection sends 100 requests.
-3 native threads are spawn to carry out these jobs..
+3 native threads are spawn to carry out these jobs.
 
 For all requests, the same `index.html` file is returned.
 We used `nginx`'s `index.html` whose size is 151 bytes.
 As "127.0.0.1" suggests, We measured web servers locally.
 We should have measured from a remote machine but
 we don't have suitable environment at this moment.
-(NOTE: I'm planning to do benchmark using two machines soon.)
+(XXX: I'm planning to do benchmark using two machines soon.)
 
 Since Linux has many control parameters,
 we need to configure the parameters carefully.
@@ -233,11 +232,11 @@ If a system call is issued,
 CPU time is given to kernel and all user threads stop.
 So, we need to use as few system calls as possible.
 For a HTTP session to get a static file,
-Warp calls `recv()`, `send()` and `sendfile()` only (Fig warp.png).
+Warp calls `recv()`, `send()` and `sendfile()` only (Fig XXX warp.png).
 `open()`, `stat()` and `close()` can be committed
 thanks to cache mechanism described in Section XXX.
 
-We can use `strace` to see what system calls are actually used.
+We can use the `strace` command to see what system calls are actually used.
 When we observed behavior of `nginx` with `strace`, 
 we noticed that it uses `accept4()`, about which we don't know at that time.
 
@@ -245,7 +244,7 @@ Using Haskell's standard network library,
 a listening socket is created with the non-blocking flag set.
 When a new connection is accepted from the listening socket,
 it is necessary to set the corresponding socket as non-blocking, too.
-The `network` package implements this by calling `fcntl()` twice:
+The network library implements this by calling `fcntl()` twice:
 one is to get the current flags and the other is to set
 the flags with the non-blocking flag *ORed*.
 
@@ -272,7 +271,7 @@ If N is larger than or equal to 2, `mighty` creates N child processes
 and the parent process just works to deliver signals.
 However, if N is 1, `mighty` does not creates one child process.
 The executed process itself serves HTTP.
-Also, `mighty` stays its terminal if debug mode is on.
+Also, `mighty` stays in its terminal if debug mode is on.
 
 When we took profile of `mighty`,
 we surprised that the standard function to format date string
@@ -315,6 +314,7 @@ in Section XXX and Section XXX.
 
 ## HTTP response composer
 
+This section describes the HTTP response composer of Warp.
 `Response` of WAI has three constructors:
 
     ResponseFile Status ResponseHeaders FilePath (Maybe FilePart)
@@ -332,8 +332,8 @@ Each constructor includes both `Status` and `ResponseHeaders`.
 The old composer builds HTTP response header with `Builder`, 
 rope-like data structure.
 First, it converts `Status` and each element of `ResponseHeaders`
-to `Builder`. This operation runs in O(1).
-Then, it concatenate them by repeating append one `Builder` to anther. 
+to `Builder`. Each conversion runs in O(1).
+Then, it concatenates them by repeatedly appending one `Builder` to anther. 
 Thank to rope-like feature, each append operation also runs in O(1).
 Lastly, it packs an HTTP response header
 by copying data from `Builder` to a buffer in O(N).
@@ -368,9 +368,9 @@ we always did it with high concurrency.
 That is, we always make multiple connections at the same time.
 It gave us a good result.
 However, when we set the number of concurrency to 1, 
-we found Warp is really really slow.
+we found Warp is really slow.
 
-Observing the results of `tcpdump`, 
+Observing the results of the `tcpdump` command, 
 we realized that this is because old Warp uses
 the combination of writev() for header and sendfile() for body.
 In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx).
@@ -381,7 +381,8 @@ To send them in a single TCP packet (when possible),
 new Warp switched from `writev()` to `send()`.
 It uses `send()` with the `MSG_MORE` flag to store a header
 and `sendfile()` to send both the stored header and a file.
-This made the throughput at least 100 times faster.
+This made the throughput at least 100 times faster
+according to our throughput benchmark.
 
 ## Clean-up with timers
 
@@ -399,7 +400,7 @@ whose type is as follows:
 
     Int -> IO a -> IO (Maybe a)
 
-The first argument is time to timeout in microsecond.
+The first argument is time of timeout in microsecond.
 The second argument is an action which handles input/output (IO).
 This function returns a value of `Maybe a` in the IO context.
 `Maybe` is defined as follows:
@@ -409,7 +410,7 @@ This function returns a value of `Maybe a` in the IO context.
 `Nothing` means an error (without reason information) and 
 `Just` encloses a successful value `a`.
 So, `timeout` returns `Nothing`
-if an action is completed in a specified time.
+if an action is not completed in a specified time.
 Otherwise, a successful value is returned wrapped with `Just`.
 `timeout` eloquently shows how great Haskell's composability is.
 
@@ -418,9 +419,8 @@ Unfortunately,
 To implement high-performance servers,
 we need to avoid to create a user thread for timeout
 for each connection.
-
 So, we implement a timeout system which uses only
-one user thread to handle timeout of all connections.
+one user thread, called timeout manager, to handle timeout of all connections.
 Its heart is the following two points:
 
 - Double `IORef`s
@@ -428,20 +428,20 @@ Its heart is the following two points:
 
 Suppose that status of connections is described as `Active` and `Inactive`.
 To clean up inactive connections,
-a dedicated Haskell thread, called the timeout manager, repeatedly inspects the status of each connection.
+the timeout manager, repeatedly inspects the status of each connection.
 If status is `Active`, the timeout manager turns it to `Inactive`.
-If `Inactive`, the timeout manager kills its associated Haskell thread.
+If `Inactive`, the timeout manager kills its associated user thread.
 
 Each status is refereed by an `IORef`.
+`IORef` is a reference whose value can be destructively updated.
 To update status through this `IORef`,
 atomicity is not necessary because status is just overwritten.
 In addition to the timeout manager,
-each Haskell thread repeatedly turns its status to `Active` through its own `IORef` if its connection actively continues.
+each user thread repeatedly turns its status to `Active` through its own `IORef` if its connection actively continues.
 
-To check all statuses easily,
-the timeout manager uses a list of the `IORef` to status.
-A Haskell thread spawned for a new connection
-tries to 'cons' its new `IORef` for an `Active` status to the list.
+The timeout manager uses a list of the `IORef` to status.
+A user thread spawned for a new connection
+tries to prepend its new `IORef` for an `Active` status to the list.
 So, the list is a critical section and we need atomicity to keep
 the list consistent.
 
@@ -450,9 +450,8 @@ the list consistent.
 A standard way to keep consistency in Haskell is `MVar`.
 But `MVar` is slow
 because each `MVar` is protected with a home-brewed spin lock.
-So, he used another `IORef` to refer the list and `atomicModifyIORef`
+So, we used another `IORef` to refer the list and `atomicModifyIORef`
 to manipulate it.
-`IORef` is a reference whose value can be destructively updated.
 `atomicModifyIORef` is a function to atomically update `IORef`'s values.
 It is fast since it is implemented via CAS (Compare-and-Swap),
 which is much faster than spin locks.
@@ -465,10 +464,10 @@ The following is the outline of the safe swap and merge algorithm:
 
 The timeout manager atomically swaps the list with an empty list.
 Then it manipulates the list by turning status and/or removing
-unnecessary status for killed Haskell threads.
+unnecessary status for killed user threads.
 During this process, new connections may be created and
 their status are inserted with `atomicModifyIORef` by
-corresponding Haskell threads.
+corresponding user threads.
 Then, the timeout manager atomically merges
 the pruned list and the new list.
 
@@ -494,10 +493,10 @@ we don't have to worry about leakage.
 Since `sendfile()` requires a file descriptor,
 the naive sequence to send a file is
 `open()`, `sendfile()` repeatedly if necessary, and `close()`.
-In this section, we consider how to cache file descriptors
+In this subsection, we consider how to cache file descriptors
 to avoid `open()` and `close()`.
 Caching file descriptors should work as follows:
-If a client requests that a file be sent, 
+if a client requests that a file be sent, 
 a file descriptor is opened by `open()`.
 And if another client requests the same file shortly thereafter,
 the file descriptor is reused.
@@ -513,7 +512,7 @@ the file descriptor leaks.
 We noticed that the scheme of connection timeout is safe
 to reuse as a cache mechanism for file descriptors
 because it does not use reference counters.
-However, we cannot simply reuse Warp's timeout code for some reasons:
+However, we cannot simply reuse the timeout manager for some reasons:
 
 Each user thread has its own status. So, status is not shared.
 But we would like to cache file descriptors to avoid `open()` and
@@ -530,13 +529,13 @@ This is technically called a *multimap*.
 We implemented a multimap whose look-up is O(log N) and
 pruning is O(N) with red-black trees
 whose node contains a non-empty list.
-Since a red-black trees is one of binary search trees,
+Since a red-black tree is one of binary search trees,
 look-up is O(log N) where N is the number of nodes.
 Also, we can translate it into an order list in O(log N).
 In our implementation, 
 pruning nodes which contains a file descriptor to be closed is
-also done during this procedure.
-An algorithm is known, which converts a order list to a red-black tree in O(N).
+also done during this step.
+We adopted an algorithm to convert an order list to a red-black tree in O(N).
 
 ## Future work
 
@@ -581,7 +580,7 @@ Recent Linux and FreeBSD wakes up only one process/native thread.
 So, this problem became a thing of the past.
 
 Recent network servers tend to use the `epoll` family.
-If worker processes share a listen socket and
+If workers share a listen socket and
 they manipulate accept connections through the `epoll` family,
 thundering herd appears again.
 This is because
