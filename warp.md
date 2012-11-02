@@ -119,6 +119,10 @@ while keeping high performance (Fig XXX).
 As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality.
 Haskell community is now developing parallel IO manager.
+A Haskell program with parallel IO manager is
+executed as a single process and
+multiple IO managers run as native threads to utilize cores.
+And user threads are executed on one of cores.
 If it will be merged to GHC, Warp itself can use this architecture
 without any modifications.
 
@@ -152,8 +156,11 @@ This is illustrated in Fix XXX.
 
 ![Warp](warp.png)
 
-The user thread repeats this procedure if necessary and terminates by itself when
-the connection is closed by the peer.
+The user thread repeats this procedure
+if necessary and terminates by itself
+when the connection is closed by the peer.
+It is also killed by the dedicated user thread for timeout
+if a significant amount of data is not received in a specified period.
 
 ## Performance of Warp
 
@@ -167,11 +174,11 @@ Our benchmark environment is as follows:
 
 We tested several benchmark tools in the past and
 our favorite one was `httperf`.
-Since it uses the `select()` system call and is just a single process program,
+Since it uses `select()` and is just a single process program,
 it reaches its performance limits when we try to measure HTTP servers on
 multi-cores.
 So, we switched to `weighttp`, which 
-is based on the `epoll` system call family and can use
+is based on the `epoll` family and can use
 multiple native threads. 
 We used `weighttp` as follows:
 
@@ -223,7 +230,7 @@ There are three key ideas to implement high-performance server in Haskell:
 
 If a system call is issued, 
 CPU time is given to kernel and all user threads stop.
-So, we need to use as fewe system calls as possible.
+So, we need to use as few system calls as possible.
 For a HTTP session to get a static file,
 Warp calls `recv()`, `send()` and `sendfile()` only (Fig warp.png).
 `open()`, `stat()`, `close()` and other system calls can be committed
@@ -243,7 +250,7 @@ the flags with the non-blocking flag *ORed*.
 
 On Linux, the non-block flag of a connected socket
 is always unset even if its listening socket is non-blocking.
-The `accept4()` system call is an extension version of `accept()` on Linux.
+`accept4()` is an extension version of `accept()` on Linux.
 It can set the non-blocking flag when accepting.
 So, if we use `accept4()`, we can avoid two unnecessary `fcntl()`s.
 Our patch to use `accept4()` on Linux has been already merged to
@@ -258,9 +265,17 @@ http-date
 
 ### Avoiding locks
 
-- Talking about parallel IO manager
-
-TBD
+Unnecessary locks are evil for programming.
+Our code sometime uses unnecessary locks imperceptibly
+because runtime systems or libraries uses locks deep inside.
+To implement high-performance server,
+we need to identify locks and
+avoid locks if possible.
+It is worth pointing out that
+locks will become much more critical under
+the parallel IO managers.
+We will talk how to identify and avoid locks
+in Section XXX and Section XXX.
 
 ## HTTP request parser
 
@@ -301,15 +316,18 @@ In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx)
 
 To send them in a single TCP packet (when possible),
 new Warp switched from `writev()` to `send()`.
-It uses the `send()` system call with the `MSG_MORE` flag to store a header
-and the `sendfile()` system call to send both the stored header and a file.
+It uses `send()` with the `MSG_MORE` flag to store a header
+and `sendfile()` to send both the stored header and a file.
 This made the throughput at least 100 times faster.
 
 ## Clean-up with timers
 
+This section explain how to implement connection timeout and
+how to cache file descriptors.
+
 ### Timers for connections
 
-To prevent slowloris attacks, Warp kills a user thread,
+To prevent slowloris attacks, a dedicated user thread kills a user thread,
 which communicates with a client,
 if the client does not send a significant amount of data for a specified period (30 seconds by default).
 
@@ -368,54 +386,69 @@ the pruned list and the new list.
 
 ### Timers for file descriptors
 
-Warp's timeout approach is safe to reuse as a cache mechanism for
-file descriptors because it does not use reference counters.
+Let's consider the case where Warp sends the entire file by `sendfile()`.
+Unfortunately, we need to call `stat()`
+to know the size of the file
+because `sendfile()` on Linux requires the caller
+to specify how many bytes to be sent
+(`sendfile()` on FreeBSD/MacOS has magic number '0'
+which indicates the end of file).
+
+If WAI applications know the file size,
+Warp can avoid `stat()`.
+It is easy for WAI applications to cache file information
+such as size and modification time.
+If cache timeout is fast enough (say 10 seconds),
+the risk of cache inconsistency problem is not serious.
+And because we can safely clean up the cache,
+we don't have to worry about leakage.
+
+Since `sendfile()` requires a file descriptor,
+the naive sequence to send a file is
+`open()`, `sendfile()` repeatedly if necessary, and `close()`.
+In this section, we consider how to cache file descriptors
+to avoid `open()` and `close()`.
+Caching file descriptors should work as follows:
+If a client requests that a file be sent, 
+a file descriptor is opened by `open()`.
+And if another client requests the same file shortly thereafter,
+the file descriptor is reused.
+At a later time, the file descriptor is closed by `close()`
+if no user thread uses it.
+
+A typical tactic for this case is reference counter.
+But we was not sure that we could implement a robust mechanism
+for a reference counter.
+What happens if a user thread is killed for unexpected reasons?
+If we fail to decrement its reference counter,
+the file descriptor leaks.
+We noticed that the scheme of connection timeout is safe
+to reuse as a cache mechanism for file descriptors
+because it does not use reference counters.
 However, we cannot simply reuse Warp's timeout code for some reasons:
 
-Each Haskell thread has its own status. So, status is not shared.
+Each user thread has its own status. So, status is not shared.
 But we would like to cache file descriptors to avoid `open()` and
 `close()` by sharing.
-So, we need to search a file descriptor for a requested file from
-cached ones. Since this look-up should be fast, we should not use a list.
-You may think `Data.Map` can be used.
-Yes, its look-up is O(log N) but there are two reasons why we cannot use it:
-
-1. `Data.Map` is a finite map which cannot contain multiple values for a single key.
-2. `Data.Map` does not provide a fast pruning method.
-
-Problem 1: because requests are received concurrently,
+So, we need to search a file descriptor for a requested file
+from cached ones.
+Since this look-up should be fast, we should not use a list.
+Also,
+because requests are received concurrently,
 two or more file descriptors for the same file may be opened.
 So, we need to store multiple file descriptors for a single file name.
-We can solve this by re-implementing `Data.Map` to
-hold a non-empty list.
-This is technically called a "multimap".
+This is technically called a *multimap*.
 
-Problem 2: `Data.Map` is based on a binary search tree called "weight
-balanced tree". To the best of my best knowledge, there is no way to prune the tree
-directly. You may also think that we can convert the tree to a list (`toList`),
-then prune it, and convert the list back to a new tree (`fromList`).
-The cost of the first two operations is O(N) but
-that of the last one is O(N log N) unfortunately.
-
-One day, I remembered Exercise 3.9 of "Purely Functional Data Structure" -
-to implement `fromOrdList` which constructs
-a red-black tree from an ordered list in O(N).
-My friends and I have a study meeting on this book every month.
-To solve this problem, one guy found a paper by Ralf Hinze,
-"Constructing Red-Black Trees".
-If you want to know its concrete algorithm,
-please read this paper.
-
-Since red-black trees are binary search trees,
-we can implement multimap by combining it and non-empty lists.
-Fortunately, the list created with `toList` is sorted.
-So, we can use `fromOrdList` to convert the sorted list to a new
-red-black tree.
-Now we have a multimap whose look-up is O(log N) and
-pruning is O(N).
-
-The cache mechanism has already been merged into the master branch of
-Warp, and is awaiting release.
+We implemented a multimap whose look-up is O(log N) and
+pruning is O(N) with red-black trees
+whose node contains a non-empty list.
+Since a red-black trees is one of binary search trees,
+look-up is O(log N) where N is the number of nodes.
+Also, we can translate it into an order list in O(log N).
+In our implementation, 
+pruning nodes which contains a file descriptor to be closed is
+also done during this procedure.
+An algorithm is known, which converts a order list to a red-black tree in O(N).
 
 ## Future work
 
@@ -457,12 +490,12 @@ This is called *thundering* *herd*.
 Recent Linux and FreeBSD wakes up only one process/native thread.
 So, this problem became a thing of the past.
 
-Recent network servers tend to use the `epoll`/`kqueue` family.
+Recent network servers tend to use the `epoll` family.
 If worker processes share a listen socket and
-they manipulate accept connections through the `epoll`/`kqueue` family,
+they manipulate accept connections through the `epoll` family,
 thundering herd appears again.
 This is because
-the semantics of the `epoll`/`kqueue` family is to notify
+the semantics of the `epoll` family is to notify
 all processes/native threads. 
 `nginx` and `mighty` are victims of new thundering herd.
 
