@@ -93,19 +93,18 @@
 <li>No timeout care thanks to timeout manager -- From &quot;Warp: A Haskell Web Server&quot;?</li>
 <li>Conduit</li>
 </ul>
-<h2 id="http-response-builder">HTTP response builder</h2>
-<h3 id="response-header">response header</h3>
-<ul>
-<li>Blaze builder vs low level memory operations</li>
-</ul>
-<h3 id="response-body">response body</h3>
-<ul>
-<li>Three types</li>
-<li>Blaze builder</li>
-<li>Conduit</li>
-<li>sendfile</li>
-</ul>
-<h3 id="sending-header-and-body-together">sending header and body together</h3>
+<h2 id="http-response-composer">HTTP response composer</h2>
+<p><code>Response</code> of WAI has three constructors:</p>
+<pre><code>ResponseBuilder Status ResponseHeaders Builder
+ResponseSource Status ResponseHeaders (Source (ResourceT IO) (Flush Builder))
+ResponseFile Status ResponseHeaders FilePath (Maybe FilePart)</code></pre>
+<p>For <code>ResponseBuilder</code> and <code>ResponseSource</code>, send() is used to send both an HTTP response header and body with a fixed buffer. For <code>ResponseFile</code>, Warp uses send() and sendfile() to send an HTTP response header and body, respectively. Fig XXX illustrates this case.</p>
+<h3 id="composer-for-http-response-header">Composer for HTTP response header</h3>
+<p>The old composer for HTTP response header creates a <code>Builder</code> of the blaze-builder package by appending the <code>Bytestring</code>s in the <code>Status</code> and the <code>ResponseHeaders</code>. Each append operation runs in O(1). The <code>Builder</code> is converted to a list of <em>packed</em> <code>ByteString</code>s and sent with <code>writev()</code>. And then a file (HTTP response body) is sent with <code>sendfile()</code>.</p>
+<p>In many cases, the performance of the blaze builder is sufficient. But I suspected that it is not fast enough for high performance servers.</p>
+<h3 id="composer-for-http-response-body">Composer for HTTP response body</h3>
+<p>TBD</p>
+<h3 id="sending-header-and-body-together">Sending header and body together</h3>
 <p>When we measured the performance of Warp, we always did it with high concurrency. That is, we always make multiple connections at the same time. It gave us a good result. However, when we set the number of concurrency to 1, we found Warp is really really slow.</p>
 <p>Observing the results of <code>tcpdump</code>, we realized that this is because old Warp uses the combination of writev() for header and sendfile() for body. In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx).</p>
 <div class="figure">
@@ -130,7 +129,7 @@
 <p>Each status is refereed by an <code>IORef</code>. To update status through this <code>IORef</code>, atomicity is not necessary because status is just overwritten. In addition to the timeout manager, each Haskell thread repeatedly turns its status to <code>Active</code> through its own <code>IORef</code> if its connection actively continues.</p>
 <p>To check all statuses easily, the timeout manager uses a list of the <code>IORef</code> to status. A Haskell thread spawned for a new connection tries to 'cons' its new <code>IORef</code> for an <code>Active</code> status to the list. So, the list is a critical section and we need atomicity to keep the list consistent.</p>
 <div class="figure">
-<img src="timeout.png" alt="A list of status" /><p class="caption">A list of status</p>
+<img src="timeout.png" alt="A list of status. A and I indicates Active and Inactive, respectively" /><p class="caption">A list of status. <code>A</code> and <code>I</code> indicates <code>Active</code> and <code>Inactive</code>, respectively</p>
 </div>
 <p>A standard way to keep consistency in Haskell is <code>MVar</code>. But <code>MVar</code> is slow because each <code>MVar</code> is protected with a home-brewed spin lock. So, he used another <code>IORef</code> to refer the list and <code>atomicModifyIORef</code> to manipulate it. <code>IORef</code> is a reference whose value can be destructively updated. <code>atomicModifyIORef</code> is a function to atomically update <code>IORef</code>'s values. It is fast since it is implemented via CAS (Compare-and-Swap), which is much faster than spin locks.</p>
 <p>The following is the outline of the safe swap and merge algorithm:</p>

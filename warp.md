@@ -313,21 +313,42 @@ in Section XXX and Section XXX.
 -- From "Warp: A Haskell Web Server"?
 - Conduit
 
-## HTTP response builder
+## HTTP response composer
 
-### response header
+`Response` of WAI has three constructors:
 
-- Blaze builder vs low level memory operations
+    ResponseBuilder Status ResponseHeaders Builder
+    ResponseSource Status ResponseHeaders (Source (ResourceT IO) (Flush Builder))
+    ResponseFile Status ResponseHeaders FilePath (Maybe FilePart)
 
-### response body
+For `ResponseBuilder` and `ResponseSource`,
+send() is used to send both an HTTP response header and
+body with a fixed buffer.
+For `ResponseFile`, 
+Warp uses send() and sendfile() to send
+an HTTP response header and body, respectively.
+Fig XXX illustrates this case.
 
-- Three types
-- Blaze builder
-- Conduit
-- sendfile
+### Composer for HTTP response header
 
-### sending header and body together
+The old composer for HTTP response header
+creates a `Builder` of the blaze-builder package
+by appending the `Bytestring`s in the `Status`
+and the `ResponseHeaders`.
+Each append operation runs in O(1).
+The `Builder` is converted to a list of *packed* `ByteString`s
+and sent with `writev()`. 
+And then a file (HTTP response body) is sent with `sendfile()`.
 
+In many cases, the performance of the blaze builder is sufficient.
+But I suspected that it is not fast enough for
+high performance servers.
+
+### Composer for HTTP response body
+
+TBD
+
+### Sending header and body together
 
 When we measured the performance of Warp,
 we always did it with high concurrency.
@@ -411,7 +432,7 @@ tries to 'cons' its new `IORef` for an `Active` status to the list.
 So, the list is a critical section and we need atomicity to keep
 the list consistent.
 
-![A list of status](timeout.png)
+![A list of status. `A` and `I` indicates `Active` and `Inactive`, respectively](timeout.png)
 
 A standard way to keep consistency in Haskell is `MVar`.
 But `MVar` is slow
