@@ -74,7 +74,7 @@
 <li>Avoiding locks</li>
 </ol>
 <h3 id="issuing-as-few-system-calls-as-possible">Issuing as few system calls as possible</h3>
-<p>If a system call is issued, CPU time is given to kernel and all user threads stop. So, we need to use as few system calls as possible. For a HTTP session to get a static file, Warp calls <code>recv()</code>, <code>send()</code> and <code>sendfile()</code> only (Fig warp.png). <code>open()</code>, <code>stat()</code>, <code>close()</code> and other system calls can be committed thanks to cache mechanism described in Section XXX.</p>
+<p>If a system call is issued, CPU time is given to kernel and all user threads stop. So, we need to use as few system calls as possible. For a HTTP session to get a static file, Warp calls <code>recv()</code>, <code>send()</code> and <code>sendfile()</code> only (Fig warp.png). <code>open()</code>, <code>stat()</code> and <code>close()</code> can be committed thanks to cache mechanism described in Section XXX.</p>
 <p>We can use <code>strace</code> to see what system calls are actually used. When we observed behavior of <code>nginx</code> with <code>strace</code>, we noticed that it uses <code>accept4()</code>, about which we don't know at that time.</p>
 <p>Using Haskell's standard network library, a listening socket is created with the non-blocking flag set. When a new connection is accepted from the listening socket, it is necessary to set the corresponding socket as non-blocking, too. The <code>network</code> package implements this by calling <code>fcntl()</code> twice: one is to get the current flags and the other is to set the flags with the non-blocking flag <em>ORed</em>.</p>
 <p>On Linux, the non-block flag of a connected socket is always unset even if its listening socket is non-blocking. <code>accept4()</code> is an extension version of <code>accept()</code> on Linux. It can set the non-blocking flag when accepting. So, if we use <code>accept4()</code>, we can avoid two unnecessary <code>fcntl()</code>s. Our patch to use <code>accept4()</code> on Linux has been already merged to the network library.</p>
@@ -95,17 +95,20 @@
 </ul>
 <h2 id="http-response-composer">HTTP response composer</h2>
 <p><code>Response</code> of WAI has three constructors:</p>
-<pre><code>ResponseBuilder Status ResponseHeaders Builder
-ResponseSource Status ResponseHeaders (Source (ResourceT IO) (Flush Builder))
-ResponseFile Status ResponseHeaders FilePath (Maybe FilePart)</code></pre>
-<p>For <code>ResponseBuilder</code> and <code>ResponseSource</code>, send() is used to send both an HTTP response header and body with a fixed buffer. For <code>ResponseFile</code>, Warp uses send() and sendfile() to send an HTTP response header and body, respectively. Fig XXX illustrates this case.</p>
+<pre><code>ResponseFile Status ResponseHeaders FilePath (Maybe FilePart)
+ResponseBuilder Status ResponseHeaders Builder
+ResponseSource Status ResponseHeaders (Source (ResourceT IO) (Flush Builder))</code></pre>
+<p><code>ResponseFile</code> is used to send a static file while <code>ResponseBuilder</code> and <code>ResponseSource</code> are for sending dynamic contents created in memory. Each constructor includes both <code>Status</code> and <code>ResponseHeaders</code>. <code>ResponseHeaders</code> is defined as a pair of header field key and value.</p>
 <h3 id="composer-for-http-response-header">Composer for HTTP response header</h3>
-<p>The old composer for HTTP response header creates a <code>Builder</code> of the blaze-builder package by appending the <code>Bytestring</code>s in the <code>Status</code> and the <code>ResponseHeaders</code>. Each append operation runs in O(1). The <code>Builder</code> is converted to a list of <em>packed</em> <code>ByteString</code>s and sent with <code>writev()</code>. And then a file (HTTP response body) is sent with <code>sendfile()</code>.</p>
+<p>The old composer for HTTP response header creates a <code>Builder</code>, by appending the <code>Bytestring</code>s in the <code>Status</code> and the <code>ResponseHeaders</code>.</p>
+<p>also appeared in the <code>ResponseBuilder</code> constructor. We can append two <code>Builder</code>s in O(1) and can copy the appended data to a buffer in O(N).</p>
+<p>Each append operation runs in O(1). The <code>Builder</code> is converted to a list of <em>packed</em> <code>ByteString</code>s and sent with <code>writev()</code>. And then a file (HTTP response body) is sent with <code>sendfile()</code>.</p>
 <p>In many cases, the performance of the blaze builder is sufficient. But I suspected that it is not fast enough for high performance servers.</p>
 <h3 id="composer-for-http-response-body">Composer for HTTP response body</h3>
-<p>TBD</p>
+<p>For <code>ResponseBuilder</code> and <code>ResponseSource</code>, <code>Builder</code> is packed into a list of byte arrays. A composed header is prepended to the list and send() is used to send the list in a fixed buffer.</p>
+<p>For <code>ResponseFile</code>, Warp uses send() and sendfile() to send an HTTP response header and body, respectively. Fig XXX illustrates this case. Again, <code>open()</code>, <code>stat()</code>, <code>close()</code> and other system calls can be committed thanks to cache mechanism described in Section XXX. The following subsection describe another peformace tuning in <code>ResponseFile</code> case.</p>
 <h3 id="sending-header-and-body-together">Sending header and body together</h3>
-<p>When we measured the performance of Warp, we always did it with high concurrency. That is, we always make multiple connections at the same time. It gave us a good result. However, when we set the number of concurrency to 1, we found Warp is really really slow.</p>
+<p>When we measured the performance of Warp to send static files, we always did it with high concurrency. That is, we always make multiple connections at the same time. It gave us a good result. However, when we set the number of concurrency to 1, we found Warp is really really slow.</p>
 <p>Observing the results of <code>tcpdump</code>, we realized that this is because old Warp uses the combination of writev() for header and sendfile() for body. In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx).</p>
 <div class="figure">
 <img src="tcpdump.png" alt="Packet sequence of old Warp" /><p class="caption">Packet sequence of old Warp</p>
@@ -148,11 +151,11 @@ ResponseFile Status ResponseHeaders FilePath (Maybe FilePart)</code></pre>
 <p>We have some items to improve Warp in the future but we will explain two here.</p>
 <h3 id="memory-allocation">Memory allocation</h3>
 <p>When receiving and sending packets, buffers are allocated. We think that these memory allocations may be the current bottleneck. GHC runtime system uses <code>pthread_mutex_lock</code> to obtain a large object (larger than 409 bytes in 64 bit machines).</p>
-<p>We tried to measure how much memory allocation for HTTP response header consume time. We copied the <code>create</code> function of <code>ByteString</code> to Warp and surrounded <code>mallocByteString</code> with <code>Debug.Trace.traceEventIO</code>. Then we complied <code>mighty</code> with it and took eventlog. The result eventlog is illustrated as follows:</p>
+<p>We tried to measure how much memory allocation for HTTP response header consume time. For this purpose, GHC provides <em>eventlog</em> which can records timestamps of each event. We surrounded a memory allocation function with the function to record a user event. Then we complied <code>mighty</code> with it and took eventlog. The result eventlog is illustrated as follows:</p>
 <div class="figure">
 <img src="eventlog.png" alt="eventlog" /><p class="caption">eventlog</p>
 </div>
-<p>Brick red bars indicates the event created by <code>traceEventIO</code>. The area surrounded by two bars is the time consumed by <code>mallocByteString</code>. It is about 1/10 of an HTTP session. We are confident that the same thing happens when allocating receiving buffers.</p>
+<p>Brick red bars indicates the event created by us. So, the area surrounded by two bars is the time consumed by memory allocation. It is about 1/10 of an HTTP session. We are discussing how to implement memory allocation without locks.</p>
 <h3 id="new-thundering-herd">New thundering herd</h3>
 <p>Thundering herd is an old but new problem. Suppose that processes/native threads are pre-forked to share a listening socket. They call <code>accept()</code> on the socket. When a connection is created, old Linux and FreeBSD wakes up all of them. And only one can accept it and the others sleeps again. Since this causes many context switches, we face performance problem. This is called <em>thundering</em> <em>herd</em>. Recent Linux and FreeBSD wakes up only one process/native thread. So, this problem became a thing of the past.</p>
 <p>Recent network servers tend to use the <code>epoll</code> family. If worker processes share a listen socket and they manipulate accept connections through the <code>epoll</code> family, thundering herd appears again. This is because the semantics of the <code>epoll</code> family is to notify all processes/native threads. <code>nginx</code> and <code>mighty</code> are victims of new thundering herd.</p>

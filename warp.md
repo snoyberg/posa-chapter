@@ -234,7 +234,7 @@ CPU time is given to kernel and all user threads stop.
 So, we need to use as few system calls as possible.
 For a HTTP session to get a static file,
 Warp calls `recv()`, `send()` and `sendfile()` only (Fig warp.png).
-`open()`, `stat()`, `close()` and other system calls can be committed
+`open()`, `stat()` and `close()` can be committed
 thanks to cache mechanism described in Section XXX.
 
 We can use `strace` to see what system calls are actually used.
@@ -317,24 +317,26 @@ in Section XXX and Section XXX.
 
 `Response` of WAI has three constructors:
 
+    ResponseFile Status ResponseHeaders FilePath (Maybe FilePart)
     ResponseBuilder Status ResponseHeaders Builder
     ResponseSource Status ResponseHeaders (Source (ResourceT IO) (Flush Builder))
-    ResponseFile Status ResponseHeaders FilePath (Maybe FilePart)
 
-For `ResponseBuilder` and `ResponseSource`,
-send() is used to send both an HTTP response header and
-body with a fixed buffer.
-For `ResponseFile`, 
-Warp uses send() and sendfile() to send
-an HTTP response header and body, respectively.
-Fig XXX illustrates this case.
+`ResponseFile` is used to send a static file while
+`ResponseBuilder` and `ResponseSource` are for sending
+dynamic contents created in memory.
+Each constructor includes both `Status` and `ResponseHeaders`.
+`ResponseHeaders` is defined as a pair of header field key and value.
 
 ### Composer for HTTP response header
 
-The old composer for HTTP response header
-creates a `Builder` of the blaze-builder package
+The old composer for HTTP response header creates a `Builder`, 
 by appending the `Bytestring`s in the `Status`
 and the `ResponseHeaders`.
+
+also appeared in the `ResponseBuilder` constructor.
+We can append two `Builder`s in O(1) and
+can copy the appended data to a buffer in O(N).
+
 Each append operation runs in O(1).
 The `Builder` is converted to a list of *packed* `ByteString`s
 and sent with `writev()`. 
@@ -346,11 +348,23 @@ high performance servers.
 
 ### Composer for HTTP response body
 
-TBD
+For `ResponseBuilder` and `ResponseSource`,
+`Builder` is packed into a list of byte arrays.
+A composed header is prepended to the list and
+send() is used to send the list in a fixed buffer.
+
+For `ResponseFile`, 
+Warp uses send() and sendfile() to send
+an HTTP response header and body, respectively.
+Fig XXX illustrates this case.
+Again, `open()`, `stat()`, `close()` and other system calls can be committed
+thanks to cache mechanism described in Section XXX.
+The following subsection describe another peformace tuning
+in `ResponseFile` case.
 
 ### Sending header and body together
 
-When we measured the performance of Warp,
+When we measured the performance of Warp to send static files,
 we always did it with high concurrency.
 That is, we always make multiple connections at the same time.
 It gave us a good result.
@@ -539,17 +553,19 @@ to obtain a large object (larger than 409 bytes in 64 bit machines).
 
 We tried to measure how much memory allocation
 for HTTP response header consume time.
-We copied the `create` function of `ByteString` to Warp and
-surrounded `mallocByteString` with `Debug.Trace.traceEventIO`. 
+For this purpose, GHC provides *eventlog* which
+can records timestamps of each event.
+We surrounded a memory allocation function
+with the function to record a user event.
 Then we complied `mighty` with it and took eventlog.
 The result eventlog is illustrated as follows:
 
 ![eventlog](eventlog.png)
 
-Brick red bars indicates the event created by `traceEventIO`. 
-The area surrounded by two bars is the time consumed by `mallocByteString`.
+Brick red bars indicates the event created by us.
+So, the area surrounded by two bars is the time consumed by memory allocation.
 It is about 1/10 of an HTTP session.
-We are confident that the same thing happens when allocating receiving buffers.
+We are discussing how to implement memory allocation without locks.
 
 ### New thundering herd
 
