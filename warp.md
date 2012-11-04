@@ -1,6 +1,6 @@
 # Warp
 
-Authors: Michael Snoyman and Kazu Yamamoto
+Authors: Kazu Yamamoto and Michael Snoyman
 
 Warp is a high-performance library of HTTP server side in Haskell,
 a purely functional programming language.
@@ -17,41 +17,41 @@ for the rest of this article.
 
 ## Network programming in Haskell
 
-Some people may still misunderstand that 
+Some people believe that
 functional programming languages are slow or impractical.
-However, to our best knowledge, 
-Haskell provides the best scheme for network programming.
-This is because that GHC (Glasgow Haskell Compiler), 
-the flagship compiler of Haskell, provides
-lightweight and robust user thread (or sometime called green thread).
-In this section, we will briefly explain history of
-network programming in server side.
+However, to the best of our knowledge, 
+Haskell provides a nearly ideal approach for network programming.
+This is because the Glasgow Haskell Compiler (GHC), 
+the flagship compiler for Haskell, provides
+lightweight and robust user threads (or sometime called green threads).
+In this section, we will briefly explain the history of
+server side network programming.
 
 ### Native threads
 
 Traditional servers use a technique called thread programming.
 In this architecture, each connection is handled
-by a single process or native thread (or sometime called OS thread).
+by a single process or native thread- sometimes called an OS thread.
 
-This architecture can be broken down by how to create processes or native threads.
+This architecture can be further segmented based on the mechanism used for creating the processes or native threads.
 When using a thread pool, multiple processes or native threads are created in advance.
 An example of this is the prefork mode in Apache.
-Otherwise, a process or native thread is spawn each time a connection is received. Fig XXX illustrates this.
+Otherwise, a process or native thread is spawned each time a connection is received. Fig XXX illustrates this.
 
 ![Native threads](1.png)
 
-The advantage of this architecture is that clear code can be written
-because the code is not divided into event handlers.
+The advantage of this architecture is that it enables writing clear code,
+since the code is not divided into event handlers.
 Also, because the kernel assigns processes or
 native threads to available cores,
 we can balance utilization of cores.
 Its disadvantage is a large number of
-context switches between kernel and processes or native threads occur.
-So, performance gets poor.
+context switches between kernel and processes or native threads occur,
+resulting in performance degredation.
 
 ### Event driven
 
-Recently, it is said that event-driven programming is 
+Recently, it has been said that event-driven programming is 
 required to implement high-performance servers.
 In this architecture multiple connections are handled by a single process (Fig XXX).
 Lighttpd is an example of web server using this architecture.
@@ -59,11 +59,12 @@ Lighttpd is an example of web server using this architecture.
 ![Event driven](2.png)
 
 Since there is no need to switch processes,
-less context switches occur, and performance is improved.
+less context switches occur, and performance is thereby improved.
 This is its chief advantage.
 However, it has two shortcomings.
-The first is the fact that only one core
-can be utilized because there is only a single process.
+The first is the fact that,
+since there is only a single process,
+only one core can be utilized.
 The second is that it requires asynchronous programming,
 so code is fragmented into event handlers.
 Asynchronous programming also prevents the conventional
@@ -76,8 +77,8 @@ Many have hit upon the idea of creating
 N event-driven processes to utilize N cores (Fig XXX).
 Each process is called *worker*.
 A service port must be shared among workers.
-Using the prefork technique (please don't confuse with Apache's prefork mode),
-port sharing can be achieved by modifying code slightly.
+Using the prefork technique- not to be confused with Apache's prefork mode-
+port sharing can be achieved, after slight code modifications.
 
 ![1 process per core](3.png)
 
@@ -90,13 +91,13 @@ However, it does not resolve the issue of programs having poor clarity.
 
 ### User threads
 
-GHC's user threads can be used to solve the code clarity.
+GHC's user threads can be used to solve the code clarity issue.
 They are implemented over an event-driven IO manager in GHC's runtime system.
-Starndard libraries of Haskell use non-blocking system calls
+Standard libraries of Haskell use non-blocking system calls
 so that they can cooperate with the IO manager.
 GHC's user threads are lightweight: 
 modern computers can run 100,000 user threads smoothly.
-They are robust: even asynchronous exceptions are catch
+They are robust: even asynchronous exceptions are caught
 (we explain this in Section XXX in detail).
 
 Some languages and libraries provided user threads in the past,
@@ -128,10 +129,10 @@ without any modifications.
 
 ## Warp's architecture
 
-Warp is an HTTP engine for WAI (Web Application Interface).
+Warp is an HTTP engine for the Web Application Interface (WAI).
 It runs WAI applications over HTTP.
-As we described before both Yesod and `mighty` are
-examples of WAI applications as illustrated in Fig XXX.
+As we described above, both Yesod and `mighty` are
+examples of WAI applications, as illustrated in Fig XXX.
 
 ![WAI](wai.png)
 
@@ -184,15 +185,15 @@ We used `weighttp` as follows:
 
     weighttp -n 100000 -c 1000 -t 3 -k http://127.0.0.1:8000/
 
-This means that 1,000 HTTP connections are established and
-each connection sends 100 requests.
-3 native threads are spawn to carry out these jobs.
+This means that 1,000 HTTP connections are established, with
+each connection sending 100 requests.
+3 native threads are spawned to carry out these jobs.
 
 For all requests, the same `index.html` file is returned.
-We used `nginx`'s `index.html` whose size is 151 bytes.
-As "127.0.0.1" suggests, We measured web servers locally.
-We should have measured from a remote machine but
-we don't have suitable environment at this moment.
+We used `nginx`'s `index.html`, whose size is 151 bytes.
+As "127.0.0.1" suggests, we measured web servers locally.
+We should have measured from a remote machine, but
+we do not have a suitable environment at the moment.
 (XXX: I'm planning to do benchmark using two machines soon.)
 
 Since Linux has many control parameters,
