@@ -308,10 +308,212 @@ in Section XXX and Section XXX.
 
 ## HTTP request parser
 
-- Parser generator vs handmade parser
-- No timeout care thanks to timeout manager
--- From "Warp: A Haskell Web Server"?
-- Conduit
+Besides the many issues involved with efficient concurrency and I/O in a multicore environment,
+Warp also needs to be certain that each core is performing its tasks efficiently.
+In that regard, the most relevant component is the HTTP request processing.
+The purpose is to take a stream of bytes coming from the incoming socket,
+parse out the request line and individual headers,
+and leave the request body to be processed by the application.
+It must take this information and produce a data structure which the application
+(whether a Yesod application, Mighttpd, or something else)
+will use to form its response.
+
+The request body itself presents some interesting challenges.
+Warp provides full support for pipelining and chunked request bodies.
+As a result, Warp must "dechunk" any chunked request bodies before passing them to the application.
+With pipelining, multiple requests can be transferred on a single connection.
+Therefore, Warp must ensure that the application does not consume too many bytes,
+as that would remove vital information from the next request.
+It must also be sure to discard any data remaining from the request body;
+otherwise, the remainder will be parsed as the beginning of the next request,
+causing either an invalid request or a misunderstood request.
+
+As an example, consider the following theoretical request from a client:
+
+    POST /some/path HTTP/1.1
+    Transfer-Encoding: chunked
+    Content-Type: application/x-www-form-urlencoded
+
+    0008
+    message=
+    000a
+    helloworld
+    0000
+
+    GET / HTTP/1.1
+
+The HTTP parser must extract the `/some/path` pathname and the `Content-Type` header and pass these to the application.
+When the application begins reading the request body, it must strip off the chunk headers (e.g., `0008` and `000a`)
+and instead provide the actual content, i.e. `message=helloworld`.
+It must also ensure that no more bytes are consumed after the chunk terminator (`0000`)
+so as not to interfere with the next pipelined request.
+
+### Writing the Parser
+
+Haskell is known for its powerful parsing capabilities.
+It has traditional parser generators as well as combinator libraries, such as Parsec and Attoparsec.
+Parsec and Attoparsec's textual module work in a fully Unicode-aware manner.
+However, HTTP data is guaranteed to be ASCII,
+so Unicode awareness is an overhead we need not incur.
+
+Attoparsec also provides a binary interface for parsing,
+which would let us bypass the Unicode overhead.
+But as efficient as Attoparsec is,
+it still introduces an overhead relative to a hand-rolled parser.
+So for Warp, we have not used any parser libraries.
+Instead, we perform all parsing manually.
+
+This gives rise to another question: how do we represent the actual binary data?
+The standard Haskell representation is a `ByteString`,
+an efficient packed data structure.
+A `ByteString` is essentially three pieces of data:
+a pointer to some piece of memory,
+the offset from the beginning of that memory to the data in question,
+and the size of our data.
+
+The offset information may seem redundant.
+We could instead insist that our memory pointer point to the beginning of our data.
+However, by including the offset, we enable data sharing.
+Multiple `ByteString`s can all point to the same chunk of memory and use different parts of it (a.k.a., splicing).
+There is no concern of data corruption, since `ByteString`s- like most Haskell data- are immutable.
+When the final pointer to a piece of memory is no longer used, then the memory buffer is deallocated.
+
+This combination is perfect for our use case.
+When a client sends a request over a socket,
+Warp will read the data in relatively large chunks (currently 4096 bytes).
+In most cases, this is large enough to encompass the entire request line
+and all request headers.
+Warp will then use its hand-rolled parser to break this large chunk into lines.
+This can be done quite efficiently since:
+
+1. We need only scan the memory buffer for newline characters.
+   The bytestring library provides such helper functions,
+   which are implemented with lower-level C functions like `memchr`.
+
+2. There is no need to allocate extra memory buffers to hold the data.
+   We just take splices from the original buffer.
+   It's worth stressing this point:
+   we actually end up with a situation which is more efficient than idiomatic C.
+   In C, strings are null-terminated, so splicing requires
+   allocating a new memory buffer,
+   copying the data from the old buffer,
+   and appending the null character.
+
+Once the buffer has been broken into lines,
+we perform a similar maneuver to turn the header lines into key/value pairs.
+For the request line, we parse the requested path fairly deeply.
+Suppose we have a request for:
+
+    GET /buenos/d%C3%ADas HTTP/1.1
+
+We need to perform the following steps:
+
+1. Separate the request method, path, and version into individual pieces.
+
+2. Tokenize the path along forward slashes, ending up with `["buenos", "d%C3%ADas"]`.
+
+3. Percent-decode the individual pieces, ending up with `["buenos", "d\195\173as"]`.
+
+4. UTF8-decode each piece, finally arriving at Unicode-aware text: `["buenos", "días"]`.
+
+There are a few performance gains we have in this process:
+
+1. As with newline checking, finding forward slashes is a very efficient operation.
+
+2. We use an efficient lookup table for turning the Hex characters into numerical values.
+   This code is a single memory lookup and involves no branching.
+
+3. UTF8-decoding is a highly optimized operation in the text package.
+   Likewise, the text package represents this data in an efficient, packed representation.
+
+4. Due to Haskell's laziness, this calculation will be performed on demand.
+   If the application in question does not need the textual version of the path,
+   none of these steps will be performed.
+
+The final piece of parsing we perform is dechunking.
+In many ways, dechunking is a simpler form of parsing.
+We parse a single Hex number, and then read the stated number of bytes.
+Those bytes are passed on verbatim- without any buffer copying- to the application.
+
+### Conduit
+
+This article has mentioned a few times the concept of passing the request body to the application.
+It has also hinted at the issue of the application passing a response back to the server,
+and the server receiving data from and sending data to the socket.
+A final related point not yet discussed is __middleware__,
+which are components sitting between the server and application that somehow modify the request and/or response.
+For our purposes, a prime example would be a gzip middleware,
+which automatically compresses response bodies.
+
+Historically, a common approach in the Haskell world for representing such streams of data has been lazy I/O.
+Lazy I/O represents a stream of values as a single, pure data structure.
+As more data is requested from this structure, I/O actions will be performed to grab the data from its source.
+Lazy I/O provides a huge level of composability.
+For example, I can write a function to compress a lazy `ByteString`,
+and then apply it to an existing response body easily.
+However, there are two major downsides to lazy I/O:
+
+1. Non-deterministic resource finalization.
+   If a reference to such a lazy structure is maintained,
+   or if the structure isn't quickly evaluated to its completion,
+   the finalization may be delayed for a long time
+   (e.g., until a garbage collection sweep can ensure the data is no longer necessary).
+   In many cases, this non-determinism is acceptable.
+   In the case of a web server, file descriptors are a scarce resource,
+   and therefore we need to ensure that they are finalized as soon as possible.
+
+2. These pure structures present something of a lie.
+   They are promising that there will be more bytes available,
+   but in fact the I/O operations that will be performed to retrieve those bytes may fail.
+   This can lead to exceptions being thrown where they are not anticipated.
+
+We could drop down to a lower level and deal directly with file descriptors instead.
+However, this would hurt composability greatly.
+How would we write a general-purpose GZIP middleware?
+It also leaves open the question of buffering.
+Inherent in the request parsing described above,
+we have the need to store extra bytes for later steps.
+For example, if we grab a chunk of data which includes both request headers
+and some of the request body,
+the request body must be buffered and then provided to the application.
+
+To address this, the WAI protocol- and therefore Warp- is built on top of the conduit package.
+This package provides an abstraction for streams of data.
+It keeps much of the compsability of lazy I/O,
+provides a buffering solution,
+and guarantees deterministic resource handling.
+Exceptions are also kept where they belong,
+in the parts of your code which deal with I/O.
+
+Warp represents the incoming stream of bytes from the client as a `Source`,
+and writes data to be sent to the client to a `Sink`.
+The `Application` is provided a `Source` with the request body,
+and provides a response as a `Source` as well.
+Middlewares are able to intercept the `Source`s for the request and response bodies
+and apply transformations to them.
+The composability of the conduit package makes this an easy and efficient operation.
+
+Conduit itself is a large topic, and therefore will not be covered in more depth.
+Suffice it to say for now that conduit's usage in Warp is a contributing factor to its high performance.
+
+### Slowloris protection
+
+We have one final concern: the [slowloris attack](http://en.wikipedia.org/wiki/Slowloris).
+This is a form of a Denial of Service (DOS) attack wherein each client sends very small amounts of information.
+By doing so, the client is able to maintain a higher number of connections on the same hardware/bandwidth.
+Since the web server has a constant overhead for each open connection regardless of bytes being transferred,
+this can be an effective attack.
+Therefore, Warp must detect when a connection is not sending enough data over the network and kill it.
+
+We discuss the timeout manager in more detail below,
+which is the true heart of slowloris protection.
+When it comes to request processing,
+our only requirement is to tease the timeout handler to let it know more data has been received from the client.
+In Warp, this is all done at the conduit level.
+As mentioned, the incoming data is represented as a `Source`. As part of that `Source`,
+every time a new chunk of data is received, the timeout handler is teased.
+Since teasing the handler is such a cheap operation (essentially just a memory write),
+slowloris protection does not hinder the performance of individual connection handlers in a significant way.
 
 ## HTTP response composer
 
@@ -595,3 +797,20 @@ only one IO manager accepts new connections through the `epoll` family.
 And other IO managers handle established connections.
 
 ## Conclusion
+
+Warp is a versatile web server library,
+providing efficient HTTP communication for a wide range of use cases.
+In order to achieve its high performance,
+optimizations have been performed at many levels,
+including network communications, thread management, and request parsing.
+
+Haskell has proven to be an amazing language for writing such a codebase.
+Features like immutability by default make it easier to write thread-safe code
+and avoid extra buffer copying.
+The multi-threaded runtime drastically simplifies the process of writing event-driven code.
+And GHC's powerful optimizations mean that in many cases,
+we can write high-level code and still reap the benefits of high performance.
+Yet with all of this performance, our codebase is still relatively tiny
+(under 1300 SLOC at time of writing).
+If you are looking to write maintainable, efficient, concurrent code,
+Haskell should be a strong consideration.
