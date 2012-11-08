@@ -499,7 +499,7 @@ and apply transformations to them.
 Figure XXX demonstrates how a middleware fits between Warp and an application.
 The composability of the conduit package makes this an easy and efficient operation.
 
-![Middlewares](middleware.png)
+![Middlewares](middleware-michael.png)
 
 Conduit itself is a large topic, and therefore will not be covered in more depth.
 Suffice it to say for now that conduit's usage in Warp is a contributing factor to its high performance.
