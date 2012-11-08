@@ -315,7 +315,7 @@ The purpose is to take a stream of bytes coming from the incoming socket,
 parse out the request line and individual headers,
 and leave the request body to be processed by the application.
 It must take this information and produce a data structure which the application
-(whether a Yesod application, Mighttpd, or something else)
+(whether a Yesod application, mighty, or something else)
 will use to form its response.
 
 The request body itself presents some interesting challenges.
@@ -353,7 +353,7 @@ so as not to interfere with the next pipelined request.
 Haskell is known for its powerful parsing capabilities.
 It has traditional parser generators as well as combinator libraries, such as Parsec and Attoparsec.
 Parsec and Attoparsec's textual module work in a fully Unicode-aware manner.
-However, HTTP data is guaranteed to be ASCII,
+However, HTTP headers are guaranteed to be ASCII,
 so Unicode awareness is an overhead we need not incur.
 
 Attoparsec also provides a binary interface for parsing,
@@ -389,15 +389,20 @@ This can be done quite efficiently since:
 1. We need only scan the memory buffer for newline characters.
    The bytestring library provides such helper functions,
    which are implemented with lower-level C functions like `memchr`.
+   (It's actually a little more complicated than that due to multiline headers,
+   but the same basic approach still applies.)
 
 2. There is no need to allocate extra memory buffers to hold the data.
    We just take splices from the original buffer.
+   See figure XXX for a demonstration of splicing individual components from a larger chunk of data.
    It's worth stressing this point:
    we actually end up with a situation which is more efficient than idiomatic C.
    In C, strings are null-terminated, so splicing requires
    allocating a new memory buffer,
    copying the data from the old buffer,
    and appending the null character.
+
+![Splicing ByteStrings](bytestring-splicing.png)
 
 Once the buffer has been broken into lines,
 we perform a similar maneuver to turn the header lines into key/value pairs.
@@ -491,7 +496,10 @@ The `Application` is provided a `Source` with the request body,
 and provides a response as a `Source` as well.
 Middlewares are able to intercept the `Source`s for the request and response bodies
 and apply transformations to them.
+Figure XXX demonstrates how a middleware fits between Warp and an application.
 The composability of the conduit package makes this an easy and efficient operation.
+
+![Middlewares](middleware.png)
 
 Conduit itself is a large topic, and therefore will not be covered in more depth.
 Suffice it to say for now that conduit's usage in Warp is a contributing factor to its high performance.
