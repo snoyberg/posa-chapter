@@ -447,6 +447,11 @@ It has also hinted at the issue of the application passing a response back to th
 and the server receiving data from and sending data to the socket.
 A final related point not yet discussed is __middleware__,
 which are components sitting between the server and application that somehow modify the request and/or response.
+The definition of a middleware is `type Middleware = Application -> Application`.
+The intuition behind this is that a middleware will take some "internal" application,
+preprocess the request,
+pass it to the internal application to get a response,
+and then postprocess the response.
 For our purposes, a prime example would be a gzip middleware,
 which automatically compresses response bodies.
 
