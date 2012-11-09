@@ -402,7 +402,7 @@ This can be done quite efficiently since:
    copying the data from the old buffer,
    and appending the null character.
 
-![Splicing ByteStrings](bytestring-splicing.png)
+![Splicing ByteStrings](bytestring.png)
 
 Once the buffer has been broken into lines,
 we perform a similar maneuver to turn the header lines into key/value pairs.
@@ -504,7 +504,7 @@ and apply transformations to them.
 Figure XXX demonstrates how a middleware fits between Warp and an application.
 The composability of the conduit package makes this an easy and efficient operation.
 
-![Middlewares](middleware-michael.png)
+![Middlewares](middleware.png)
 
 Conduit itself is a large topic, and therefore will not be covered in more depth.
 Suffice it to say for now that conduit's usage in Warp is a contributing factor to its high performance.
