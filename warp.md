@@ -7,13 +7,13 @@ a purely functional programming language.
 Both Yesod, a web application framework, and `mighty`, an HTTP server,
 are implemented over Warp.
 According to our throughput benchmark,
-`mighty` provides performance on par with `nginx`.
+`mighty` provides performance on a par with `nginx`.
 This article will explain
 the architecture of Warp and how we improved its performance.
-Warp can run on many platforms
+Warp can run on many platforms,
 including Linux, BSD variants, MacOS, and Windows.
-To make our explanation simple, however, we will talk about Linux only
-for the rest of this article.
+To simplify our explanation, however, we will only talk about Linux
+for the remainder of this article.
 
 ## Network programming in Haskell
 
@@ -23,7 +23,7 @@ However, to the best of our knowledge,
 Haskell provides a nearly ideal approach for network programming.
 This is because the Glasgow Haskell Compiler (GHC), 
 the flagship compiler for Haskell, provides
-lightweight and robust user threads (or sometime called green threads).
+lightweight and robust user threads (sometimes called green threads).
 In this section, we will briefly explain the history of
 server side network programming.
 
@@ -40,12 +40,12 @@ Otherwise, a process or native thread is spawned each time a connection is recei
 
 ![Native threads](1.png)
 
-The advantage of this architecture is that it enables writing clear code,
+The advantage of this architecture is that it enables the developer to write clear code,
 since the code is not divided into event handlers.
 Also, because the kernel assigns processes or
 native threads to available cores,
 we can balance utilization of cores.
-Its disadvantage is a large number of
+Its disadvantage is that a large number of
 context switches between kernel and processes or native threads occur,
 resulting in performance degredation.
 
@@ -54,7 +54,7 @@ resulting in performance degredation.
 Recently, it has been said that event-driven programming is 
 required to implement high-performance servers.
 In this architecture multiple connections are handled by a single process (Fig XXX).
-Lighttpd is an example of web server using this architecture.
+Lighttpd is an example of a web server using this architecture.
 
 ![Event driven](2.png)
 
@@ -75,7 +75,7 @@ use of exception handling (although there are no exceptions in C).
 
 Many have hit upon the idea of creating
 N event-driven processes to utilize N cores (Fig XXX).
-Each process is called *worker*.
+Each process is called a *worker*.
 A service port must be shared among workers.
 Using the prefork technique- not to be confused with Apache's prefork mode-
 port sharing can be achieved, after slight code modifications.
@@ -95,9 +95,9 @@ GHC's user threads can be used to solve the code clarity issue.
 They are implemented over an event-driven IO manager in GHC's runtime system.
 Standard libraries of Haskell use non-blocking system calls
 so that they can cooperate with the IO manager.
-GHC's user threads are lightweight: 
+GHC's user threads are lightweight;
 modern computers can run 100,000 user threads smoothly.
-They are robust: even asynchronous exceptions are caught
+They are robust; even asynchronous exceptions are caught
 (we explain this in Section XXX in detail).
 
 Some languages and libraries provided user threads in the past,
@@ -111,7 +111,7 @@ new data are frequently created and it is known that
 [such data allocation is regulaly enough for context switching](http://www.aosabook.org/en/ghc.html).
 
 Use of lightweight threads makes
-it possible to write code with good clarity
+it possible to write clear code
 like traditional thread programming
 while keeping high-performance (Fig XXX).
 
@@ -119,12 +119,13 @@ while keeping high-performance (Fig XXX).
 
 As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality.
-Haskell community is now developing parallel IO manager.
-A Haskell program with parallel IO manager is
+The Haskell community is now developing a parallel IO manager.
+A Haskell program with the parallel IO manager is
 executed as a single process and
 multiple IO managers run as native threads to utilize cores.
-And each user thread is executed on any one of cores.
-If it will be merged to GHC, Warp itself can use this architecture
+Each user thread is executed on any one of the cores.
+If and when this code is merged into GHC,
+Warp itself will be able to use this architecture
 without any modifications.
 
 ## Warp's architecture
@@ -145,21 +146,22 @@ the most right one is the type of return value.
 So, we can interpret the definition
 as a WAI application takes `Request` and returns `Response`.
 
-After accepting a new HTTP connection, a dedicated user thread is spawn for the
+After accepting a new HTTP connection, a dedicated user thread is spawned for the
 connection.
 It first receives an HTTP request from a client
 and parses it to `Request`.
 Then, Warp gives the `Request` to a WAI application and
-takes a `Response` from it.
-Finally, Warp builds an HTTP response based on `Response`
+receives a `Response` from it.
+Finally, Warp builds an HTTP response based on the `Response` value
 and sends it back to the client.
 This is illustrated in Fig XXX.
 
 ![Warp](warp.png)
 
 The user thread repeats this procedure
-if necessary and terminates by itself
-when the connection is closed by the peer.
+as necessary and terminates itself
+when the connection is closed by the peer
+or and invalid request is received.
 It is also killed by the dedicated user thread for timeout
 if a significant amount of data is not received for a certain period.
 
@@ -198,30 +200,30 @@ we do not have a suitable environment at the moment.
 
 Since Linux has many control parameters,
 we need to configure the parameters carefully.
-You can find a good introduction about
+You can find a good introduction to
 Linux parameter tuning in [ApacheBench & HTTPerf](http://gwan.com/en_apachebench_httperf.html).
 
 We carefully configured both `mighty` and `nginx` as follows:
 
-- using file descriptor cache
-- no logging
-- no rate limitation
+- Enabled file descriptor cache
+- Disabled logging
+- Disabled rate limitation
 
 Since our machine has 12 cores and
 `weighttp` uses three native threads,
 we measured web servers from one worker to
-eight workers(to our experience,
-three native thread is enough to measure 8 workers).
+eight workers (in our experience,
+three native threads is enough to measure 8 workers).
 Here is the result:
 
 ![Performance of Warp and `nginx`](multi-workers.png)
 
-X-axis is the number of workers and y-axis means throughput
-whose unit is requests per second.
+The x-axis is the number of workers and the y-axis gives throughput,
+measured in requests per second.
 
 ## Key ideas
 
-There are three key ideas to implement high-performance server in Haskell:
+There are three key ideas to implement high-performance servers in Haskell:
 
 1. Issuing as few system calls as possible
 2. Specialization and avoiding re-calculation
@@ -230,21 +232,21 @@ There are three key ideas to implement high-performance server in Haskell:
 ### Issuing as few system calls as possible
 
 If a system call is issued, 
-CPU time is given to kernel and all user threads stop.
+CPU time is given to the kernel and all user threads stop.
 So, we need to use as few system calls as possible.
-For a HTTP session to get a static file,
+For an HTTP session to get a static file,
 Warp calls `recv()`, `send()` and `sendfile()` only (Fig XXX warp.png).
 `open()`, `stat()` and `close()` can be committed
 thanks to cache mechanism described in Section XXX.
 
 We can use the `strace` command to see what system calls are actually used.
-When we observed behavior of `nginx` with `strace`, 
-we noticed that it uses `accept4()`, about which we don't know at that time.
+When we observed the behavior of `nginx` with `strace`, 
+we noticed that it used `accept4()`, which we did not know about at the time.
 
 Using Haskell's standard network library, 
 a listening socket is created with the non-blocking flag set.
 When a new connection is accepted from the listening socket,
-it is necessary to set the corresponding socket as non-blocking, too.
+it is necessary to set the corresponding socket as non-blocking as well.
 The network library implements this by calling `fcntl()` twice:
 one is to get the current flags and the other is to set
 the flags with the non-blocking flag *ORed*.
@@ -259,25 +261,25 @@ the network library.
 
 ### Specialization and avoiding re-calculation
 
-GHC provides profiling mechanism but it has a limitation:
-right profiling is possible
-if a program runs in foreground and it does not spawn child processes.
+GHC provides a profiling mechanism, but it has a limitation:
+correct profiling is only possible
+if a program runs in the foreground and does not spawn child processes.
 So, if we want to profile live activities of servers,
-we need to implement special care for profiling.
+we need to take special care for profiling.
 
 `mighty` has this mechanism.
 Suppose that N is the number of workers
 in the configuration file of `mighty`.
-If N is larger than or equal to 2, `mighty` creates N child processes
+If N is greater than or equal to 2, `mighty` creates N child processes
 and the parent process just works to deliver signals.
-However, if N is 1, `mighty` does not creates one child process.
-The executed process itself serves HTTP.
+However, if N is 1, `mighty` does not create any child process.
+Instead, the executed process itself serves HTTP.
 Also, `mighty` stays in its terminal if debug mode is on.
 
-When we took profile of `mighty`,
-we surprised that the standard function to format date string
-consumes most CPU time.
-As many know, an end HTTP server should return GMT date strings
+When we profiled `mighty`,
+we were surprised that the standard function to format date string
+consumed the majority of CPU time.
+As many know, an HTTP server should return GMT date strings
 in header fields such as Date:, Last-Modified:, etc:
 
     Date: Mon, 01 Oct 2012 07:38:50 GMT
@@ -288,7 +290,7 @@ Comparing the standard function and our specialized function with
 ours are much faster.
 But if an HTTP server accepts more than one request per second,
 the server repeats the same formatting again and again.
-So, we also implemented cache mechanism for date strings.
+So, we also implemented a cache mechanism for date strings.
 
 TBD: reference to other parts.
 
@@ -296,14 +298,14 @@ TBD: reference to other parts.
 
 Unnecessary locks are evil for programming.
 Our code sometime uses unnecessary locks imperceptibly
-because runtime systems or libraries uses locks deep inside.
-To implement high-performance server,
-we need to identify locks and
-avoid locks if possible.
+because, internally, the runtime systems or libraries use locks.
+To implement high-performance servers,
+we need to identify such locks and
+avoid them if possible.
 It is worth pointing out that
 locks will become much more critical under
 the parallel IO manager.
-We will talk how to identify and avoid locks
+We will talk about how to identify and avoid locks
 in Section XXX and Section XXX.
 
 ## HTTP request parser
@@ -531,7 +533,7 @@ slowloris protection does not hinder the performance of individual connection ha
 ## HTTP response composer
 
 This section describes the HTTP response composer of Warp.
-`Response` of WAI has three constructors:
+A WAI `Response` has three constructors:
 
     ResponseFile Status ResponseHeaders FilePath (Maybe FilePart)
     ResponseBuilder Status ResponseHeaders Builder
@@ -541,16 +543,16 @@ This section describes the HTTP response composer of Warp.
 `ResponseBuilder` and `ResponseSource` are for sending
 dynamic contents created in memory.
 Each constructor includes both `Status` and `ResponseHeaders`.
-`ResponseHeaders` is defined as a list of a pair of header field key and value.
+`ResponseHeaders` is defined as a list of key/value header pairs.
 
 ### Composer for HTTP response header
 
-The old composer builds HTTP response header with `Builder`, 
-rope-like data structure.
-First, it converts `Status` and each element of `ResponseHeaders`
-to `Builder`. Each conversion runs in O(1).
+The old composer built HTTP response header with a `Builder`,
+a rope-like data structure.
+First, it converted `Status` and each element of `ResponseHeaders`
+into a `Builder`. Each conversion runs in O(1).
 Then, it concatenates them by repeatedly appending one `Builder` to anther. 
-Thank to rope-like feature, each append operation also runs in O(1).
+Thanks to the properties of `Builder`, each append operation also runs in O(1).
 Lastly, it packs an HTTP response header
 by copying data from `Builder` to a buffer in O(N).
 
@@ -558,13 +560,13 @@ In many cases, the performance of `Builder` is sufficient.
 But we experienced that it is not fast enough for
 high-performance servers.
 To eliminate the overhead of `Builder`,
-we implemented a special composer for HTTP response headerm
+we implemented a special composer for HTTP response headers
 by directly using `memcpy()`, a highly tuned byte copy function in C.
 
 ### Composer for HTTP response body
 
 For `ResponseBuilder` and `ResponseSource`,
-`Builder` is packed into a list of byte arrays.
+the `Builder` values provided by the application are packed into a list of byte arrays.
 A composed header is prepended to the list and
 send() is used to send the list in a fixed buffer.
 
@@ -573,21 +575,21 @@ Warp uses send() and sendfile() to send
 an HTTP response header and body, respectively.
 Fig XXX illustrates this case.
 Again, `open()`, `stat()`, `close()` and other system calls can be committed
-thanks to cache mechanism described in Section XXX.
-The following subsection describe another peformace tuning
-in `ResponseFile` case.
+thanks to the cache mechanism described in Section XXX.
+The following subsection describe another performace tuning
+in the case of `ResponseFile`.
 
 ### Sending header and body together
 
 When we measured the performance of Warp to send static files,
 we always did it with high concurrency.
-That is, we always make multiple connections at the same time.
+That is, we always made multiple connections at the same time.
 It gave us a good result.
 However, when we set the number of concurrency to 1, 
-we found Warp is really slow.
+we found Warp to be really slow.
 
 Observing the results of the `tcpdump` command, 
-we realized that this is because old Warp uses
+we realized that this is because originally Warp used
 the combination of writev() for header and sendfile() for body.
 In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx).
 
@@ -616,14 +618,14 @@ whose type is as follows:
 
     Int -> IO a -> IO (Maybe a)
 
-The first argument is time of timeout in microsecond.
+The first argument is the duration of the timeout, in microseconds.
 The second argument is an action which handles input/output (IO).
 This function returns a value of `Maybe a` in the IO context.
 `Maybe` is defined as follows:
 
     data Maybe a = Nothing | Just a
 
-`Nothing` means an error (without reason information) and 
+`Nothing` indicates an error (without reason information) and 
 `Just` encloses a successful value `a`.
 So, `timeout` returns `Nothing`
 if an action is not completed in a specified time.
@@ -633,10 +635,10 @@ Otherwise, a successful value is returned wrapped with `Just`.
 Unfortunately,
 `timeout` spawns a user thread to handle timeout.
 To implement high-performance servers,
-we need to avoid to create a user thread for timeout
+we need to avoid the creation of a user thread for timeout
 for each connection.
-So, we implement a timeout system which uses only
-one user thread, called timeout manager, to handle timeout of all connections.
+So, we implemented a timeout system which uses only
+one user thread, called the timeout manager, to handle the timeouts of all connections.
 Its heart is the following two points:
 
 - Double `IORef`s
@@ -644,18 +646,18 @@ Its heart is the following two points:
 
 Suppose that status of connections is described as `Active` and `Inactive`.
 To clean up inactive connections,
-the timeout manager, repeatedly inspects the status of each connection.
+the timeout manager repeatedly inspects the status of each connection.
 If status is `Active`, the timeout manager turns it to `Inactive`.
 If `Inactive`, the timeout manager kills its associated user thread.
 
-Each status is refereed by an `IORef`.
+Each status is referred to by an `IORef`.
 `IORef` is a reference whose value can be destructively updated.
 To update status through this `IORef`,
 atomicity is not necessary because status is just overwritten.
 In addition to the timeout manager,
-each user thread repeatedly turns its status to `Active` through its own `IORef` if its connection actively continues.
+each user thread repeatedly turns its status to `Active` through its own `IORef` as its connection actively continues.
 
-The timeout manager uses a list of the `IORef` to status.
+The timeout manager uses a list of the `IORef` to these statuses.
 A user thread spawned for a new connection
 tries to prepend its new `IORef` for an `Active` status to the list.
 So, the list is a critical section and we need atomicity to keep
@@ -664,9 +666,9 @@ the list consistent.
 ![A list of status. `A` and `I` indicates `Active` and `Inactive`, respectively](timeout.png)
 
 A standard way to keep consistency in Haskell is `MVar`.
-But `MVar` is slow
-because each `MVar` is protected with a home-brewed spin lock.
-So, we used another `IORef` to refer the list and `atomicModifyIORef`
+But `MVar` is slow,
+since each `MVar` is protected with a home-brewed spin lock.
+Instead, we used another `IORef` to refer the list and `atomicModifyIORef`
 to manipulate it.
 `atomicModifyIORef` is a function to atomically update `IORef`'s values.
 It is fast since it is implemented via CAS (Compare-and-Swap),
@@ -682,8 +684,8 @@ The timeout manager atomically swaps the list with an empty list.
 Then it manipulates the list by turning status and/or removing
 unnecessary status for killed user threads.
 During this process, new connections may be created and
-their status are inserted with `atomicModifyIORef` by
-corresponding user threads.
+their status are inserted via `atomicModifyIORef` by
+their corresponding user threads.
 Then, the timeout manager atomically merges
 the pruned list and the new list.
 
@@ -694,7 +696,7 @@ Unfortunately, we need to call `stat()`
 to know the size of the file
 because `sendfile()` on Linux requires the caller
 to specify how many bytes to be sent
-(`sendfile()` on FreeBSD/MacOS has magic number '0'
+(`sendfile()` on FreeBSD/MacOS has a magic number '0'
 which indicates the end of file).
 
 If WAI applications know the file size,
@@ -715,12 +717,12 @@ Caching file descriptors should work as follows:
 if a client requests that a file be sent, 
 a file descriptor is opened by `open()`.
 And if another client requests the same file shortly thereafter,
-the file descriptor is reused.
+the previously opened file descriptor is reused.
 At a later time, the file descriptor is closed by `close()`
 if no user thread uses it.
 
-A typical tactic for this case is reference counter.
-But we was not sure that we could implement a robust mechanism
+A typical tactic for this case is reference counting.
+But we were not sure that we could implement a robust mechanism
 for a reference counter.
 What happens if a user thread is killed for unexpected reasons?
 If we fail to decrement its reference counter,
@@ -728,12 +730,12 @@ the file descriptor leaks.
 We noticed that the scheme of connection timeout is safe
 to reuse as a cache mechanism for file descriptors
 because it does not use reference counters.
-However, we cannot simply reuse the timeout manager for some reasons:
+However, we cannot simply reuse the timeout manager for serveral reasons.
 
 Each user thread has its own status. So, status is not shared.
 But we would like to cache file descriptors to avoid `open()` and
 `close()` by sharing.
-So, we need to search a file descriptor for a requested file
+So, we need to search for a file descriptor for a requested file
 from cached ones.
 Since this look-up should be fast, we should not use a list.
 Also,
@@ -745,17 +747,17 @@ This is technically called a *multimap*.
 We implemented a multimap whose look-up is O(log N) and
 pruning is O(N) with red-black trees
 whose node contains a non-empty list.
-Since a red-black tree is one of binary search trees,
+Since a red-black tree is a binary search tree,
 look-up is O(log N) where N is the number of nodes.
-Also, we can translate it into an order list in O(log N).
+Also, we can translate it into an ordered list in O(log N).
 In our implementation, 
-pruning nodes which contains a file descriptor to be closed is
+pruning nodes which contain a file descriptor to be closed is
 also done during this step.
-We adopted an algorithm to convert an order list to a red-black tree in O(N).
+We adopted an algorithm to convert an ordered list to a red-black tree in O(N).
 
 ## Future work
 
-We have some items to improve Warp in the future but
+We have several ideas for improvement of Warp in the future, but
 we will explain two here.
 
 ### Memory allocation
@@ -788,23 +790,23 @@ Suppose that processes/native threads are pre-forked to share a listening socket
 They call `accept()` on the socket.
 When a connection is created, old Linux and FreeBSD
 wakes up all of them.
-And only one can accept it and the others sleeps again.
+And only one can accept it and the others sleep again.
 Since this causes many context switches, 
-we face performance problem.
+we face a performance problem.
 This is called *thundering* *herd*.
 Recent Linux and FreeBSD wakes up only one process/native thread.
 So, this problem became a thing of the past.
 
 Recent network servers tend to use the `epoll` family.
-If workers share a listen socket and
+If workers share a listening socket and
 they manipulate accept connections through the `epoll` family,
 thundering herd appears again.
 This is because
 the semantics of the `epoll` family is to notify
 all processes/native threads. 
-`nginx` and `mighty` are victims of new thundering herd.
+`nginx` and `mighty` are victims of this new thundering herd.
 
-The parallel IO manager is free from new thundering herd.
+The parallel IO manager is free from the new thundering herd problem.
 In this architecture,
 only one IO manager accepts new connections through the `epoll` family. 
 And other IO managers handle established connections.
