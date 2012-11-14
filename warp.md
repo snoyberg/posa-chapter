@@ -36,7 +36,7 @@ by a single process or native thread- sometimes called an OS thread.
 This architecture can be further segmented based on the mechanism used for creating the processes or native threads.
 When using a thread pool, multiple processes or native threads are created in advance.
 An example of this is the prefork mode in Apache.
-Otherwise, a process or native thread is spawned each time a connection is received. Fig XXX illustrates this.
+Otherwise, a process or native thread is spawned each time a connection is received. Fig (TBD:1.png) illustrates this.
 
 ![Native threads](1.png)
 
@@ -53,7 +53,8 @@ resulting in performance degredation.
 
 Recently, it has been said that event-driven programming is 
 required to implement high-performance servers.
-In this architecture multiple connections are handled by a single process (Fig XXX).
+In this architecture multiple connections are handled
+by a single process (Fig (TBD:2.png)).
 Lighttpd is an example of a web server using this architecture.
 
 ![Event driven](2.png)
@@ -74,7 +75,7 @@ use of exception handling (although there are no exceptions in C).
 ### 1 process per core 
 
 Many have hit upon the idea of creating
-N event-driven processes to utilize N cores (Fig XXX).
+N event-driven processes to utilize N cores (Fig (TBD:3.png)).
 Each process is called a *worker*.
 A service port must be shared among workers.
 Using the prefork technique- not to be confused with Apache's prefork mode-
@@ -98,7 +99,7 @@ so that they can cooperate with the IO manager.
 GHC's user threads are lightweight;
 modern computers can run 100,000 user threads smoothly.
 They are robust; even asynchronous exceptions are caught
-(we explain this in Section XXX in detail).
+(this feature is used timeout described in Section (TBD:Warp's architecture) and in Section (TBD:Timers for connections)).
 
 Some languages and libraries provided user threads in the past,
 but they are not commonly used now because they are not lightweight
@@ -113,7 +114,7 @@ new data are frequently created and it is known that
 Use of lightweight threads makes
 it possible to write clear code
 like traditional thread programming
-while keeping high-performance (Fig XXX).
+while keeping high-performance (Fig (TBD:4.png)).
 
 ![User threads](4.png)
 
@@ -133,7 +134,7 @@ without any modifications.
 Warp is an HTTP engine for the Web Application Interface (WAI).
 It runs WAI applications over HTTP.
 As we described above, both Yesod and `mighty` are
-examples of WAI applications, as illustrated in Fig XXX.
+examples of WAI applications, as illustrated in Fig (TBD:wai.png).
 
 ![Web Application Interface (WAI)](wai.png)
 
@@ -154,7 +155,7 @@ Then, Warp gives the `Request` to a WAI application and
 receives a `Response` from it.
 Finally, Warp builds an HTTP response based on the `Response` value
 and sends it back to the client.
-This is illustrated in Fig XXX.
+This is illustrated in Fig (TBD:warp.png).
 
 ![The architecture of Warp](warp.png)
 
@@ -169,7 +170,7 @@ if a significant amount of data is not received for a certain period.
 
 Before we explain how to improve the performance of Warp,
 we would like to show the results of our benchmark.
-We measured throughput of `mighty` 2.8.2 (with Warp x.x.x) and `nginx` 1.2.4.
+We measured throughput of `mighty` 2.8.2 (with Warp 1.3.4.1) and `nginx` 1.2.4.
 Our benchmark environment is as follows:
 
 - One "12 cores" machine (Intel Xeon E5645, two sockets, 6 cores per 1 CPU, two QPI between two CPUs)
@@ -221,11 +222,12 @@ measured in requests per second.
 
 ## Key ideas
 
-There are three key ideas to implement high-performance servers in Haskell:
+There are four key ideas to implement high-performance servers in Haskell:
 
 1. Issuing as few system calls as possible
 2. Specialization and avoiding re-calculation
 3. Avoiding locks
+4. Using proper data structures
 
 ### Issuing as few system calls as possible
 
@@ -233,9 +235,9 @@ If a system call is issued,
 CPU time is given to the kernel and all user threads stop.
 So, we need to use as few system calls as possible.
 For an HTTP session to get a static file,
-Warp calls `recv()`, `send()` and `sendfile()` only (Fig XXX warp.png).
+Warp calls `recv()`, `send()` and `sendfile()` only (Fig (TBD:warp.png)).
 `open()`, `stat()` and `close()` can be omitted
-thanks to cache mechanism described in Section XXX.
+thanks to cache mechanism described in Section (TBD:Timers for file descriptors).
 
 We can use the `strace` command to see what system calls are actually used.
 When we observed the behavior of `nginx` with `strace`, 
@@ -290,7 +292,8 @@ But if an HTTP server accepts more than one request per second,
 the server repeats the same formatting again and again.
 So, we also implemented a cache mechanism for date strings.
 
-TBD: reference to other parts.
+We will also explain this topic in Section (TBD:Writing the Parser)
+and in Section (TBD:Composer for HTTP response header).
 
 ### Avoiding locks
 
@@ -304,7 +307,27 @@ It is worth pointing out that
 locks will become much more critical under
 the parallel IO manager.
 We will talk about how to identify and avoid locks
-in Section XXX and Section XXX.
+in Section (TBD:Timers for connections) and
+Section (TBD:Memory allocation).
+
+### Using proper data structures
+
+The Haskell's standard data structure for strings is `String`,
+which is a list of Unicode.
+Since list programming is the heart of functional programming,
+`String` is convenient for many purposes.
+But for high-performance servers, the list structure is too slow
+and Unicode is overspec since HTTP protocol is based on *byte* stream.
+Instead, we use `ByteString` to express strings (or buffers).
+A `ByteString` is an array of bytes with meta data.
+Thanks to this meta data,
+splicing without copying is possible.
+This is described in Section (TBD:Writing the Parser) in detail.
+
+Other examples of proper data structures are
+`Builder` and double `IORef`.
+They are explained in Section (TBD:Composer for HTTP response header)
+and Section (TBD:Timers for connections), respectively.
 
 ## HTTP request parser
 
@@ -364,9 +387,8 @@ So for Warp, we have not used any parser libraries.
 Instead, we perform all parsing manually.
 
 This gives rise to another question: how do we represent the actual binary data?
-The standard Haskell representation is a `ByteString`,
-an efficient packed data structure.
-A `ByteString` is essentially three pieces of data:
+The answer is a `ByteString`, which is
+essentially three pieces of data:
 a pointer to some piece of memory,
 the offset from the beginning of that memory to the data in question,
 and the size of our data.
@@ -394,7 +416,7 @@ This can be done quite efficiently since:
 
 2. There is no need to allocate extra memory buffers to hold the data.
    We just take splices from the original buffer.
-   See figure XXX for a demonstration of splicing individual components from a larger chunk of data.
+   See figure (TBD:bytestring.png) for a demonstration of splicing individual components from a larger chunk of data.
    It's worth stressing this point:
    we actually end up with a situation which is more efficient than idiomatic C.
    In C, strings are null-terminated, so splicing requires
@@ -504,7 +526,7 @@ The `Application` is provided a `Source` with the request body,
 and provides a response as a `Source` as well.
 Middlewares are able to intercept the `Source`s for the request and response bodies
 and apply transformations to them.
-Figure XXX demonstrates how a middleware fits between Warp and an application.
+Figure (TBD:middleware.png) demonstrates how a middleware fits between Warp and an application.
 The composability of the conduit package makes this an easy and efficient operation.
 
 ![Middlewares](middleware.png)
@@ -574,9 +596,9 @@ send() is used to send the list in a fixed buffer.
 For `ResponseFile`, 
 Warp uses send() and sendfile() to send
 an HTTP response header and body, respectively.
-Fig XXX illustrates this case.
+Fig (TBD:warp.png) illustrates this case.
 Again, `open()`, `stat()`, `close()` and other system calls can be committed
-thanks to the cache mechanism described in Section XXX.
+thanks to the cache mechanism described in Section (TBD:Timers for file descriptors).
 The following subsection describe another performace tuning
 in the case of `ResponseFile`.
 
@@ -592,7 +614,7 @@ we found Warp to be really slow.
 Observing the results of the `tcpdump` command, 
 we realized that this is because originally Warp used
 the combination of writev() for header and sendfile() for body.
-In this case, an HTTP header and body are sent in separate TCP packets (Fig xxx).
+In this case, an HTTP header and body are sent in separate TCP packets (Fig (TBD:tcpdump.png)).
 
 ![Packet sequence of old Warp](tcpdump.png)
 
