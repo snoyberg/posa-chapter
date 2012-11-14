@@ -312,12 +312,12 @@ Section (TBD:Memory allocation).
 
 ### Using proper data structures
 
-The Haskell's standard data structure for strings is `String`,
-which is a list of Unicode.
+Haskell's standard data structure for strings is `String`,
+which is a linked list of Unicode characters.
 Since list programming is the heart of functional programming,
 `String` is convenient for many purposes.
 But for high-performance servers, the list structure is too slow
-and Unicode is overspec since HTTP protocol is based on *byte* stream.
+and Unicode is overly complex since the HTTP protocol is based on *byte* streams.
 Instead, we use `ByteString` to express strings (or buffers).
 A `ByteString` is an array of bytes with meta data.
 Thanks to this meta data,
