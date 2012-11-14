@@ -135,7 +135,7 @@ It runs WAI applications over HTTP.
 As we described above, both Yesod and `mighty` are
 examples of WAI applications, as illustrated in Fig XXX.
 
-![WAI](wai.png)
+![Web Application Interface (WAI)](wai.png)
 
 The type of WAI applications is as follows:
 
@@ -156,7 +156,7 @@ Finally, Warp builds an HTTP response based on the `Response` value
 and sends it back to the client.
 This is illustrated in Fig XXX.
 
-![Warp](warp.png)
+![The architecture of Warp](warp.png)
 
 The user thread repeats this procedure
 as necessary and terminates itself
@@ -181,7 +181,7 @@ Since it uses `select()` and is just a single process program,
 it reaches its performance limits when we try to measure HTTP servers on
 multi-cores.
 So, we switched to `weighttp`, which 
-is based on the `epoll` family and can use
+is based on `libev` (the `epoll` family) and can use
 multiple native threads. 
 We used `weighttp` as follows:
 
@@ -196,13 +196,11 @@ We used `nginx`'s `index.html`, whose size is 151 bytes.
 As "127.0.0.1" suggests, we measured web servers locally.
 We should have measured from a remote machine, but
 we do not have a suitable environment at the moment.
-(XXX: I'm planning to do benchmark using two machines soon.)
 
 Since Linux has many control parameters,
 we need to configure the parameters carefully.
 You can find a good introduction to
 Linux parameter tuning in [ApacheBench & HTTPerf](http://gwan.com/en_apachebench_httperf.html).
-
 We carefully configured both `mighty` and `nginx` as follows:
 
 - Enabled file descriptor cache
@@ -236,7 +234,7 @@ CPU time is given to the kernel and all user threads stop.
 So, we need to use as few system calls as possible.
 For an HTTP session to get a static file,
 Warp calls `recv()`, `send()` and `sendfile()` only (Fig XXX warp.png).
-`open()`, `stat()` and `close()` can be committed
+`open()`, `stat()` and `close()` can be omitted
 thanks to cache mechanism described in Section XXX.
 
 We can use the `strace` command to see what system calls are actually used.
@@ -447,9 +445,12 @@ Those bytes are passed on verbatim- without any buffer copying- to the applicati
 This article has mentioned a few times the concept of passing the request body to the application.
 It has also hinted at the issue of the application passing a response back to the server,
 and the server receiving data from and sending data to the socket.
-A final related point not yet discussed is __middleware__,
+A final related point not yet discussed is *middleware*,
 which are components sitting between the server and application that somehow modify the request and/or response.
-The definition of a middleware is `type Middleware = Application -> Application`.
+The definition of a middleware is:
+
+    type Middleware = Application -> Application
+
 The intuition behind this is that a middleware will take some "internal" application,
 preprocess the request,
 pass it to the internal application to get a response,
@@ -461,7 +462,7 @@ Historically, a common approach in the Haskell world for representing such strea
 Lazy I/O represents a stream of values as a single, pure data structure.
 As more data is requested from this structure, I/O actions will be performed to grab the data from its source.
 Lazy I/O provides a huge level of composability.
-For example, I can write a function to compress a lazy `ByteString`,
+For example, we can write a function to compress a lazy `ByteString`,
 and then apply it to an existing response body easily.
 However, there are two major downsides to lazy I/O:
 
@@ -551,7 +552,7 @@ The old composer built HTTP response header with a `Builder`,
 a rope-like data structure.
 First, it converted `Status` and each element of `ResponseHeaders`
 into a `Builder`. Each conversion runs in O(1).
-Then, it concatenates them by repeatedly appending one `Builder` to anther. 
+Then, it concatenates them by repeatedly appending one `Builder` to another. 
 Thanks to the properties of `Builder`, each append operation also runs in O(1).
 Lastly, it packs an HTTP response header
 by copying data from `Builder` to a buffer in O(N).
@@ -566,7 +567,7 @@ by directly using `memcpy()`, a highly tuned byte copy function in C.
 ### Composer for HTTP response body
 
 For `ResponseBuilder` and `ResponseSource`,
-the `Builder` values provided by the application are packed into a list of byte arrays.
+the `Builder` values provided by the application are packed into a list of `ByteString`.
 A composed header is prepended to the list and
 send() is used to send the list in a fixed buffer.
 
@@ -696,7 +697,7 @@ Unfortunately, we need to call `stat()`
 to know the size of the file
 because `sendfile()` on Linux requires the caller
 to specify how many bytes to be sent
-(`sendfile()` on FreeBSD/MacOS has a magic number '0'
+(`sendfile()` on FreeBSD/MacOS has a magic number *0*
 which indicates the end of file).
 
 If WAI applications know the file size,
