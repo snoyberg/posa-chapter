@@ -38,7 +38,7 @@ When using a thread pool, multiple processes or native threads are created in ad
 An example of this is the prefork mode in Apache.
 Otherwise, a process or native thread is spawned each time a connection is received. Fig (TBD:1.png) illustrates this.
 
-![Native threads](1.png)
+![Native threads](https://raw.github.com/snoyberg/posa-chapter/master/1.png)
 
 The advantage of this architecture is that it enables the developer to write clear code,
 since the code is not divided into event handlers.
@@ -57,7 +57,7 @@ In this architecture multiple connections are handled
 by a single process (Fig (TBD:2.png)).
 Lighttpd is an example of a web server using this architecture.
 
-![Event driven](2.png)
+![Event driven](https://raw.github.com/snoyberg/posa-chapter/master/2.png)
 
 Since there is no need to switch processes,
 less context switches occur, and performance is thereby improved.
@@ -81,7 +81,7 @@ A service port must be shared among workers.
 Using the prefork technique- not to be confused with Apache's prefork mode-
 port sharing can be achieved, after slight code modifications.
 
-![1 process per core](3.png)
+![1 process per core](https://raw.github.com/snoyberg/posa-chapter/master/3.png)
 
 One web server that uses this architecture is `nginx`.
 Node.js used the event-driven architecture in the past but
@@ -116,7 +116,7 @@ it possible to write clear code
 like traditional thread programming
 while keeping high-performance (Fig (TBD:4.png)).
 
-![User threads](4.png)
+![User threads](https://raw.github.com/snoyberg/posa-chapter/master/4.png)
 
 As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality.
@@ -136,7 +136,7 @@ It runs WAI applications over HTTP.
 As we described above, both Yesod and `mighty` are
 examples of WAI applications, as illustrated in Fig (TBD:wai.png).
 
-![Web Application Interface (WAI)](wai.png)
+![Web Application Interface (WAI)](https://raw.github.com/snoyberg/posa-chapter/master/wai.png)
 
 The type of WAI applications is as follows:
 
@@ -157,7 +157,7 @@ Finally, Warp builds an HTTP response based on the `Response` value
 and sends it back to the client.
 This is illustrated in Fig (TBD:warp.png).
 
-![The architecture of Warp](warp.png)
+![The architecture of Warp](https://raw.github.com/snoyberg/posa-chapter/master/warp.png)
 
 The user thread repeats this procedure
 as necessary and terminates itself
@@ -215,7 +215,7 @@ eight workers (in our experience,
 three native threads is enough to measure 8 workers).
 Here is the result:
 
-![Performance of Warp and `nginx`](multi-workers.png)
+![Performance of Warp and `nginx`](https://raw.github.com/snoyberg/posa-chapter/master/multi-workers.png)
 
 The x-axis is the number of workers and the y-axis gives throughput,
 measured in requests per second.
@@ -424,7 +424,7 @@ This can be done quite efficiently since:
    copying the data from the old buffer,
    and appending the null character.
 
-![Splicing ByteStrings](bytestring.png)
+![Splicing ByteStrings](https://raw.github.com/snoyberg/posa-chapter/master/bytestring.png)
 
 Once the buffer has been broken into lines,
 we perform a similar maneuver to turn the header lines into key/value pairs.
@@ -529,7 +529,7 @@ and apply transformations to them.
 Figure (TBD:middleware.png) demonstrates how a middleware fits between Warp and an application.
 The composability of the conduit package makes this an easy and efficient operation.
 
-![Middlewares](middleware.png)
+![Middlewares](https://raw.github.com/snoyberg/posa-chapter/master/middleware.png)
 
 Conduit itself is a large topic, and therefore will not be covered in more depth.
 Suffice it to say for now that conduit's usage in Warp is a contributing factor to its high performance.
@@ -616,7 +616,7 @@ we realized that this is because originally Warp used
 the combination of writev() for header and sendfile() for body.
 In this case, an HTTP header and body are sent in separate TCP packets (Fig (TBD:tcpdump.png)).
 
-![Packet sequence of old Warp](tcpdump.png)
+![Packet sequence of old Warp](https://raw.github.com/snoyberg/posa-chapter/master/tcpdump.png)
 
 To send them in a single TCP packet (when possible),
 new Warp switched from `writev()` to `send()`.
