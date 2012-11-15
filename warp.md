@@ -597,7 +597,7 @@ For `ResponseFile`,
 Warp uses send() and sendfile() to send
 an HTTP response header and body, respectively.
 Fig (TBD:warp.png) illustrates this case.
-Again, `open()`, `stat()`, `close()` and other system calls can be committed
+Again, `open()`, `stat()`, `close()` and other system calls can be ommitted
 thanks to the cache mechanism described in Section (TBD:Timers for file descriptors).
 The following subsection describe another performace tuning
 in the case of `ResponseFile`.
