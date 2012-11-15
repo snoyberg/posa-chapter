@@ -686,7 +686,7 @@ tries to prepend its new `IORef` for an `Active` status to the list.
 So, the list is a critical section and we need atomicity to keep
 the list consistent.
 
-![A list of status. `A` and `I` indicates `Active` and `Inactive`, respectively](timeout.png)
+![A list of status. `A` and `I` indicates `Active` and `Inactive`, respectively](https://raw.github.com/snoyberg/posa-chapter/master/timeout.png)
 
 A standard way to keep consistency in Haskell is `MVar`.
 But `MVar` is slow,
@@ -799,7 +799,7 @@ with the function to record a user event.
 Then we complied `mighty` with it and took eventlog.
 The result eventlog is illustrated as follows:
 
-![eventlog](eventlog.png)
+![eventlog](https://raw.github.com/snoyberg/posa-chapter/master/eventlog.png)
 
 Brick red bars indicates the event created by us.
 So, the area surrounded by two bars is the time consumed by memory allocation.
