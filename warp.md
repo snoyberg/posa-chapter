@@ -109,7 +109,7 @@ This means that almost all functions are thread-safe.
 GHC uses data allocation as a safe point to switch context of user threads.
 Because of functional programming style,
 new data are frequently created and it is known that 
-[such data allocation is regulaly enough for context switching](http://www.aosabook.org/en/ghc.html).
+[such data allocation occurs regularly enough for context switching](http://www.aosabook.org/en/ghc.html).
 
 Use of lightweight threads makes
 it possible to write clear code
