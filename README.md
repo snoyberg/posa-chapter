@@ -1,7 +1,7 @@
 Warp Chapter for Performance of Open Source Applications
 ========================================================
 
-Please read http://www.yesodweb.com/blog/2012/11/warp-posa
+Please read https://github.com/snoyberg/posa-chapter/blob/master/warp.md
 
 Please give us comments as issues.
 
