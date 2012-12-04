@@ -690,12 +690,12 @@ the list consistent.
 
 A standard way to keep consistency in Haskell is `MVar`.
 But `MVar` is slow,
-since each `MVar` is protected with a home-brewed spin lock.
+since each `MVar` is protected with a home-brewed lock.
 Instead, we used another `IORef` to refer the list and `atomicModifyIORef`
 to manipulate it.
 `atomicModifyIORef` is a function to atomically update `IORef`'s values.
 It is fast since it is implemented via CAS (Compare-and-Swap),
-which is much faster than spin locks.
+which is much faster than locks.
 
 The following is the outline of the safe swap and merge algorithm:
 
