@@ -480,45 +480,35 @@ and then postprocess the response.
 For our purposes, a prime example would be a gzip middleware,
 which automatically compresses response bodies.
 
-Historically, a common approach in the Haskell world for representing such streams of data has been lazy I/O.
-Lazy I/O represents a stream of values as a single, pure data structure.
+A prerequisite for the creation of such middlewares
+is a means of modifying both incoming and outgoing data streams.
+A standard approach historically in the Haskell world has been *lazy I/O*.
+With lazy I/O, we represent a stream of values as a single, pure data structure.
 As more data is requested from this structure, I/O actions will be performed to grab the data from its source.
 Lazy I/O provides a huge level of composability.
-For example, we can write a function to compress a lazy `ByteString`,
-and then apply it to an existing response body easily.
-However, there are two major downsides to lazy I/O:
+However, for a high-throughput server, it presents a major obstacle:
+resource finalization in lazy I/O is non-deterministic.
+Using lazy I/O, it would be very easy for a server under high load
+to quickly run out of file descriptors.
 
-1. Non-deterministic resource finalization.
-   If a reference to such a lazy structure is maintained,
-   or if the structure isn't quickly evaluated to its completion,
-   the finalization may be delayed for a long time
-   (e.g., until a garbage collection sweep can ensure the data is no longer necessary).
-   In many cases, this non-determinism is acceptable.
-   In the case of a web server, file descriptors are a scarce resource,
-   and therefore we need to ensure that they are finalized as soon as possible.
+It would also be possible to use a lower level abstraction,
+essentially dealing directly with read and write functions.
+However, one of the advantages of Haskell is its high level approach,
+allowing us to reason about the behavior of our code.
+It's also not obvious how such a solution would deal
+with some of the common issues which arise when creating web applications.
+For example, it's often necessary to have a buffering solution,
+where we read a certain amount of data at one step (e.g., the request header processing),
+and read the remainder in a separate part of the codebase (e.g., the web application).
 
-2. These pure structures present something of a lie.
-   They are promising that there will be more bytes available,
-   but in fact the I/O operations that will be performed to retrieve those bytes may fail.
-   This can lead to exceptions being thrown where they are not anticipated.
-
-We could drop down to a lower level and deal directly with file descriptors instead.
-However, this would hurt composability greatly.
-How would we write a general-purpose GZIP middleware?
-It also leaves open the question of buffering.
-Inherent in the request parsing described above,
-we have the need to store extra bytes for later steps.
-For example, if we grab a chunk of data which includes both request headers
-and some of the request body,
-the request body must be buffered and then provided to the application.
-
-To address this, the WAI protocol- and therefore Warp- is built on top of the conduit package.
+To address this dilemna, the WAI protocol- and therefore Warp- is built on top of the conduit package.
 This package provides an abstraction for streams of data.
 It keeps much of the compsability of lazy I/O,
 provides a buffering solution,
 and guarantees deterministic resource handling.
 Exceptions are also kept where they belong,
-in the parts of your code which deal with I/O.
+in the parts of your code which deal with I/O,
+instead of hiding them in a data structure claiming to be pure.
 
 Warp represents the incoming stream of bytes from the client as a `Source`,
 and writes data to be sent to the client to a `Sink`.
@@ -530,6 +520,20 @@ Figure (TBD:middleware.png) demonstrates how a middleware fits between Warp and 
 The composability of the conduit package makes this an easy and efficient operation.
 
 ![Middlewares](https://raw.github.com/snoyberg/posa-chapter/master/middleware.png)
+
+Elaborating on the gzip middleware example,
+Conduit allows us to create a middleware which runs in a nearly optimal manner.
+The original `Source` provided by the application is connected to the `gzip` `Conduit`.
+As each new chunk of data is produced by the initial `Source`,
+it is fed into the `zlib` library, filling up a buffer with compressed bytes.
+When that buffer is filled, it is emitted,
+either to another middleware,
+or to Warp.
+Warp then takes this compressed buffer and sends it over the socket to the client.
+At this point, the buffer can either be reused, or its memory freed.
+In this way, we have optimal memory usage,
+do not produce any extra data in the case of network failure,
+and lessen the garbage collection burden for the runtime.
 
 Conduit itself is a large topic, and therefore will not be covered in more depth.
 Suffice it to say for now that conduit's usage in Warp is a contributing factor to its high performance.
