@@ -47,7 +47,7 @@ native threads to available cores,
 we can balance utilization of cores.
 Its disadvantage is that a large number of
 context switches between kernel and processes or native threads occur,
-resulting in performance degredation.
+resulting in performance degradation.
 
 ### Event driven
 
@@ -99,7 +99,7 @@ so that they can cooperate with the IO manager.
 GHC's user threads are lightweight;
 modern computers can run 100,000 user threads smoothly.
 They are robust; even asynchronous exceptions are caught
-(this feature is used timeout described in Section (TBD:Warp's architecture) and in Section (TBD:Timers for connections)).
+(this feature is used by the timeout handler, described in Section (TBD:Warp's architecture) and in Section (TBD:Timers for connections)).
 
 Some languages and libraries provided user threads in the past,
 but they are not commonly used now because they are not lightweight
@@ -143,7 +143,7 @@ The type of WAI applications is as follows:
     type Application = Request -> ResourceT IO Response
 
 In Haskell, argument types of function are separated by right arrows and
-the most right one is the type of return value.
+the rightmost one is the type of return value.
 So, we can interpret the definition
 as a WAI application takes `Request` and returns `Response`.
 
@@ -162,7 +162,7 @@ This is illustrated in Fig (TBD:warp.png).
 The user thread repeats this procedure
 as necessary and terminates itself
 when the connection is closed by the peer
-or and invalid request is received.
+or an invalid request is received.
 It is also killed by the dedicated user thread for timeout
 if a significant amount of data is not received for a certain period.
 
@@ -298,7 +298,7 @@ and in Section (TBD:Composer for HTTP response header).
 ### Avoiding locks
 
 Unnecessary locks are evil for programming.
-Our code sometime uses unnecessary locks imperceptibly
+Our code sometimes uses unnecessary locks imperceptibly
 because, internally, the runtime systems or libraries use locks.
 To implement high-performance servers,
 we need to identify such locks and
@@ -503,7 +503,7 @@ and read the remainder in a separate part of the codebase (e.g., the web applica
 
 To address this dilemna, the WAI protocol- and therefore Warp- is built on top of the conduit package.
 This package provides an abstraction for streams of data.
-It keeps much of the compsability of lazy I/O,
+It keeps much of the composability of lazy I/O,
 provides a buffering solution,
 and guarantees deterministic resource handling.
 Exceptions are also kept where they belong,
@@ -603,7 +603,7 @@ an HTTP response header and body, respectively.
 Fig (TBD:warp.png) illustrates this case.
 Again, `open()`, `stat()`, `close()` and other system calls can be ommitted
 thanks to the cache mechanism described in Section (TBD:Timers for file descriptors).
-The following subsection describe another performace tuning
+The following subsection describes another performance tuning
 in the case of `ResponseFile`.
 
 ### Sending header and body together
@@ -695,7 +695,7 @@ the list consistent.
 A standard way to keep consistency in Haskell is `MVar`.
 But `MVar` is slow,
 since each `MVar` is protected with a home-brewed lock.
-Instead, we used another `IORef` to refer the list and `atomicModifyIORef`
+Instead, we used another `IORef` to refer to the list and `atomicModifyIORef`
 to manipulate it.
 `atomicModifyIORef` is a function to atomically update `IORef`'s values.
 It is fast since it is implemented via CAS (Compare-and-Swap),
@@ -757,7 +757,7 @@ the file descriptor leaks.
 We noticed that the scheme of connection timeout is safe
 to reuse as a cache mechanism for file descriptors
 because it does not use reference counters.
-However, we cannot simply reuse the timeout manager for serveral reasons.
+However, we cannot simply reuse the timeout manager for several reasons.
 
 Each user thread has its own status. So, status is not shared.
 But we would like to cache file descriptors to avoid `open()` and
@@ -797,7 +797,7 @@ to obtain a large object (larger than 409 bytes in 64 bit machines).
 We tried to measure how much memory allocation
 for HTTP response header consume time.
 For this purpose, GHC provides *eventlog* which
-can records timestamps of each event.
+can record timestamps of each event.
 We surrounded a memory allocation function
 with the function to record a user event.
 Then we complied `mighty` with it and took eventlog.
