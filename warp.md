@@ -40,14 +40,14 @@ Otherwise, a process or native thread is spawned each time a connection is recei
 
 ![Native threads](https://raw.github.com/snoyberg/posa-chapter/master/1.png)
 
-The advantage of this architecture is that it enables the developer to write clear code,
-since the code is not divided into event handlers.
-Also, because the kernel assigns processes or
-native threads to available cores,
-we can balance utilization of cores.
-Its disadvantage is that a large number of
-context switches between kernel and processes or native threads occur,
-resulting in performance degradation.
+The advantage of this architecture is that it enables developers to
+write clear code; in particular, the use of threads allows the code to
+follow a simple and familiar flow of control and to use simple
+procedure calls to fetch input or send output.  Also, because the
+kernel assigns processes or native threads to available cores, we can
+balance utilization of cores.  Its disadvantage is that a large number
+of context switches between kernel and processes or native threads
+occur, resulting in performance degradation.
 
 ### Event driven
 
