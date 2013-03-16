@@ -63,7 +63,7 @@ Since there is no need to switch processes,
 less context switches occur, and performance is thereby improved.
 This is its chief advantage.
 
-On the other hand, this architecture substantially complicates the network program. In particular, this architecture inverts the flow of control so that the event loop controls the overall execution of the program. Programmers therefore must restructure their program into event handlers, each of which execute only non-blocking code. This restriction prevents programmers from performing IO using procedure calls; instead more complicated asynchronous methods must be used. Along the same lines, conventional exception handling methods are no longer applicable. 
+On the other hand, this architecture substantially complicates the network program. In particular, this architecture inverts the flow of control so that the event loop controls the overall execution of the program. Programmers must therefore restructure their program into event handlers, each of which execute only non-blocking code. This restriction prevents programmers from performing IO using procedure calls; instead more complicated asynchronous methods must be used. Along the same lines, conventional exception handling methods are no longer applicable. 
 
 ### 1 process per core 
 
