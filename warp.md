@@ -24,8 +24,8 @@ Haskell provides a nearly ideal approach for network programming.
 This is because the Glasgow Haskell Compiler (GHC), 
 the flagship compiler for Haskell, provides
 lightweight and robust user threads (sometimes called green threads).
-In this section, we will briefly explain the history of
-server side network programming.
+In this section, we briefly review some well-known approaches to server-side network programming and compare them with network programming in Haskell. 
+We demonstrate that Haskell offers a combination of programmability and performance not available in other approaches: Haskell's convenient abstractions allow programmers to write clear, simple code, while GHC's sophisticated compiler and multicore runtime system produce multicore programs that execute in a way very similar to the most advanced hand-crafted network programs. 
 
 ### Native threads
 
