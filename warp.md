@@ -62,15 +62,8 @@ Lighttpd is an example of a web server using this architecture.
 Since there is no need to switch processes,
 less context switches occur, and performance is thereby improved.
 This is its chief advantage.
-However, it has two shortcomings.
-The first is the fact that,
-since there is only a single process,
-only one core can be utilized.
-The second is that it requires asynchronous programming,
-so code is fragmented into event handlers.
-Asynchronous programming also prevents the conventional
-use of exception handling (although there are no exceptions in C).
 
+On the other hand, this architecture substantially complicates the network program. In particular, this architecture inverts the flow of control so that the event loop controls the overall execution of the program. Programmers therefore must restructure their program into event handlers, each of which execute only non-blocking code. This restriction prevents programmers from performing IO using procedure calls; instead more complicated asynchronous methods must be used. Along the same lines, conventional exception handling methods are no longer applicable. 
 
 ### 1 process per core 
 
