@@ -24,8 +24,8 @@ Haskell provides a nearly ideal approach for network programming.
 This is because the Glasgow Haskell Compiler (GHC), 
 the flagship compiler for Haskell, provides
 lightweight and robust user threads (sometimes called green threads).
-In this section, we will briefly explain the history of
-server side network programming.
+In this section, we briefly review some well-known approaches to server-side network programming and compare them with network programming in Haskell. 
+We demonstrate that Haskell offers a combination of programmability and performance not available in other approaches: Haskell's convenient abstractions allow programmers to write clear, simple code, while GHC's sophisticated compiler and multicore runtime system produce multicore programs that execute in a way very similar to the most advanced hand-crafted network programs. 
 
 ### Native threads
 
@@ -40,14 +40,14 @@ Otherwise, a process or native thread is spawned each time a connection is recei
 
 ![Native threads](https://raw.github.com/snoyberg/posa-chapter/master/1.png)
 
-The advantage of this architecture is that it enables the developer to write clear code,
-since the code is not divided into event handlers.
-Also, because the kernel assigns processes or
-native threads to available cores,
-we can balance utilization of cores.
-Its disadvantage is that a large number of
-context switches between kernel and processes or native threads occur,
-resulting in performance degradation.
+The advantage of this architecture is that it enables developers to
+write clear code; in particular, the use of threads allows the code to
+follow a simple and familiar flow of control and to use simple
+procedure calls to fetch input or send output.  Also, because the
+kernel assigns processes or native threads to available cores, we can
+balance utilization of cores.  Its disadvantage is that a large number
+of context switches between kernel and processes or native threads
+occur, resulting in performance degradation.
 
 ### Event driven
 
@@ -62,15 +62,8 @@ Lighttpd is an example of a web server using this architecture.
 Since there is no need to switch processes,
 less context switches occur, and performance is thereby improved.
 This is its chief advantage.
-However, it has two shortcomings.
-The first is the fact that,
-since there is only a single process,
-only one core can be utilized.
-The second is that it requires asynchronous programming,
-so code is fragmented into event handlers.
-Asynchronous programming also prevents the conventional
-use of exception handling (although there are no exceptions in C).
 
+On the other hand, this architecture substantially complicates the network program. In particular, this architecture inverts the flow of control so that the event loop controls the overall execution of the program. Programmers must therefore restructure their program into event handlers, each of which execute only non-blocking code. This restriction prevents programmers from performing IO using procedure calls; instead more complicated asynchronous methods must be used. Along the same lines, conventional exception handling methods are no longer applicable. 
 
 ### 1 process per core 
 
