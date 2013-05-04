@@ -86,7 +86,9 @@ Node.js used the event-driven architecture in the past but
 it also implemented this scheme recently.
 The advantage of this architecture is
 that it utilizes all cores and improves performance. 
-However, it does not resolve the issue of programs having poor clarity. (FIXME: #7)
+However, it does not resolve the issue of programs having poor clarity
+because of event handlers / callbacks.
+ (FIXME: #7)
 
 ### User threads
 
@@ -101,8 +103,8 @@ They are robust; even asynchronous exceptions are caught
 
 Some languages and libraries provided user threads in the past,
 but they are not commonly used now because they are not lightweight
-or are not robust.
-But in Haskell, most computation is non-destructive.
+or are not robust. (FIXME: #9)
+In Haskell, most computation is non-destructive.
 This means that almost all functions are thread-safe.
 GHC uses data allocation as a safe point to switch context of user threads.
 Because of functional programming style,
@@ -195,7 +197,7 @@ For all requests, the same `index.html` file is returned.
 We used `nginx`'s `index.html`, whose size is 151 bytes.
 As "127.0.0.1" suggests, we measured web servers locally.
 We should have measured from a remote machine, but
-we do not have a suitable environment at the moment. (FIXME: #10)
+we do not have a suitable environment at the moment. (FIXME: #8)
 
 Since Linux has many control parameters,
 we need to configure the parameters carefully.
