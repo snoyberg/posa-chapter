@@ -664,11 +664,10 @@ if an action is not completed in a specified time.
 Otherwise, a successful value is returned wrapped with `Just`.
 `timeout` eloquently shows how great Haskell's composability is.
 
-Unfortunately,
-`timeout` spawns a user thread to handle timeout.
-To implement high-performance servers,
-we need to avoid the creation of a user thread for timeout
-for each connection.
+`timeout` is useful for most purposes
+but its performance is not good enough to implement high-performance servers.
+This is because that `timeout` spawns a user thread to handle timeout. (FIXME: please review this.)
+We need to avoid the creation of a user thread for timeout for each connection.
 So, we implemented a timeout system which uses only
 one user thread, called the timeout manager, to handle the timeouts of all connections.
 Its heart is the following two points:
