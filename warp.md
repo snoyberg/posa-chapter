@@ -9,7 +9,7 @@ are implemented over Warp.
 According to our throughput benchmark,
 `mighty` provides performance on a par with `nginx`.
 This article will explain
-the architecture of Warp and how we improved its performance.
+the architecture of Warp and how we achieved its performance.
 Warp can run on many platforms,
 including Linux, BSD variants, MacOS, and Windows.
 To simplify our explanation, however, we will only talk about Linux
@@ -51,8 +51,7 @@ occur, resulting in performance degradation.
 
 ### Event driven
 
-Recently, it has been said that event-driven programming is 
-required to implement high-performance servers.
+Recent treand to implement high-performance servers is event-driven programming. (FIXME: modified according to reviewer's comment. Please see if this is corrent English.)
 In this architecture multiple connections are handled
 by a single process (Fig (TBD:2.png)).
 Lighttpd is an example of a web server using this architecture.
@@ -60,28 +59,28 @@ Lighttpd is an example of a web server using this architecture.
 ![Event driven](https://raw.github.com/snoyberg/posa-chapter/master/2.png)
 
 Since there is no need to switch processes,
-less context switches occur, and performance is thereby improved.
+fewer context switches occur, and performance is thereby improved.
 This is its chief advantage.
 
 On the other hand, this architecture substantially complicates the network program. In particular, this architecture inverts the flow of control so that the event loop controls the overall execution of the program. Programmers must therefore restructure their program into event handlers, each of which execute only non-blocking code. This restriction prevents programmers from performing IO using procedure calls; instead more complicated asynchronous methods must be used. Along the same lines, conventional exception handling methods are no longer applicable. 
 
-### 1 process per core 
+### One process per core
 
 Many have hit upon the idea of creating
 N event-driven processes to utilize N cores (Fig (TBD:3.png)).
 Each process is called a *worker*.
 A service port must be shared among workers.
 Using the prefork technique- not to be confused with Apache's prefork mode-
-port sharing can be achieved, after slight code modifications.
+port sharing can be achieved, after slight code modifications. (FIXME)
 
-![1 process per core](https://raw.github.com/snoyberg/posa-chapter/master/3.png)
+![One process per core](https://raw.github.com/snoyberg/posa-chapter/master/3.png)
 
 One web server that uses this architecture is `nginx`.
 Node.js used the event-driven architecture in the past but
 it also implemented this scheme recently.
 The advantage of this architecture is
 that it utilizes all cores and improves performance. 
-However, it does not resolve the issue of programs having poor clarity.
+However, it does not resolve the issue of programs having poor clarity. (FIXME: #7)
 
 ### User threads
 
@@ -139,6 +138,9 @@ In Haskell, argument types of function are separated by right arrows and
 the rightmost one is the type of return value.
 So, we can interpret the definition
 as a WAI application takes `Request` and returns `Response`.
+(FIXME: "strictly, it returns `ResourceT IO Response`. also, should explain
+ResourceT as it is not a standard type, so is not necessarily clear even to
+someone who knows haskell.")
 
 After accepting a new HTTP connection, a dedicated user thread is spawned for the
 connection.
@@ -189,7 +191,7 @@ For all requests, the same `index.html` file is returned.
 We used `nginx`'s `index.html`, whose size is 151 bytes.
 As "127.0.0.1" suggests, we measured web servers locally.
 We should have measured from a remote machine, but
-we do not have a suitable environment at the moment.
+we do not have a suitable environment at the moment. (FIXME: #10)
 
 Since Linux has many control parameters,
 we need to configure the parameters carefully.
@@ -218,7 +220,7 @@ measured in requests per second.
 There are four key ideas to implement high-performance servers in Haskell:
 
 1. Issuing as few system calls as possible
-2. Specialization and avoiding re-calculation
+2. Specialization and avoiding re-calculation (FIXME: "'specialization' as used here is a bit confusing, as GHC has a SPECIALIZE pragma, which is what I first thought was meant. instead it is about creating a GMT-only date formatting function.)
 3. Avoiding locks
 4. Using proper data structures
 
@@ -254,6 +256,8 @@ the network library.
 
 ### Specialization and avoiding re-calculation
 
+(FIXME: "'specialization' as used here is a bit confusing, as GHC has a SPECIALIZE pragma, which is what I first thought was meant. instead it is about creating a GMT-only date formatting function.)
+
 GHC provides a profiling mechanism, but it has a limitation:
 correct profiling is only possible
 if a program runs in the foreground and does not spawn child processes.
@@ -268,6 +272,12 @@ and the parent process just works to deliver signals.
 However, if N is 1, `mighty` does not create any child process.
 Instead, the executed process itself serves HTTP.
 Also, `mighty` stays in its terminal if debug mode is on.
+
+(FIXME: "the workaround to enable profiling is interesting, and possibly useful
+to a haskell dev, but it seems out of place to bring it up here. sure,
+profiling is being used to drive the optimisation, but I found these two
+paragraphs confusing given the section heading")
+
 
 When we profiled `mighty`,
 we were surprised that the standard function to format date string
