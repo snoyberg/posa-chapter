@@ -238,7 +238,7 @@ If a system call is issued,
 CPU time is given to the kernel and all user threads stop.
 So, we need to use as few system calls as possible.
 For an HTTP session to get a static file,
-Warp calls `recv()`, `send()` and `sendfile()` only (Fig (TBD:warp.png)).
+Warp calls `recv()`, `send()` and `sendfile()` (a system call enabling zero-copying a file) only (Fig (TBD:warp.png)).
 `open()`, `stat()` and `close()` can be omitted
 thanks to cache mechanism described in Section (TBD:Timers for file descriptors).
 
@@ -781,7 +781,7 @@ pruning is O(N) with red-black trees
 whose node contains a non-empty list.
 Since a red-black tree is a binary search tree,
 look-up is O(log N) where N is the number of nodes.
-Also, we can translate it into an ordered list in O(log N).
+Also, we can translate it into an ordered list in O(N).
 In our implementation, 
 pruning nodes which contain a file descriptor to be closed is
 also done during this step.
