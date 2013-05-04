@@ -684,7 +684,7 @@ If `Inactive`, the timeout manager kills its associated user thread.
 Each status is referred to by an `IORef`.
 `IORef` is a reference whose value can be destructively updated.
 To update status through this `IORef`,
-atomicity is not necessary because status is just overwritten.
+atomicity is not necessary because status is just overwritten. (FIXME: #12)
 In addition to the timeout manager,
 each user thread repeatedly turns its status to `Active` through its own `IORef` as its connection actively continues.
 
@@ -718,7 +718,7 @@ During this process, new connections may be created and
 their status are inserted via `atomicModifyIORef` by
 their corresponding user threads.
 Then, the timeout manager atomically merges
-the pruned list and the new list.
+the pruned list and the new list. (FIXME: #13)
 
 ### Timers for file descriptors
 
