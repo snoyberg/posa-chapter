@@ -70,8 +70,14 @@ Many have hit upon the idea of creating
 N event-driven processes to utilize N cores (Fig (TBD:3.png)).
 Each process is called a *worker*.
 A service port must be shared among workers.
-Using the prefork technique- not to be confused with Apache's prefork mode-
-port sharing can be achieved, after slight code modifications. (FIXME)
+Using the prefork technique, port sharing can be achieved.
+
+In traditional process programming, a process for a new connection
+is forked after the connection is accepted.
+In contrast, the prefork technique forks processes
+before new connections are accepted
+Please don't be confused with Apache's prefork mode.
+(FIXME: please review this.)
 
 ![One process per core](https://raw.github.com/snoyberg/posa-chapter/master/3.png)
 
