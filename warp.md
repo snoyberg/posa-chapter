@@ -174,7 +174,7 @@ we would like to show the results of our benchmark.
 We measured throughput of `mighty` 2.8.2 (with Warp 1.3.4.1) and `nginx` 1.2.4.
 Our benchmark environment is as follows:
 
-- One "12 cores" machine (Intel Xeon E5645, two sockets, 6 cores per 1 CPU, two QPI between two CPUs)
+- One "12 cores" machine (Intel Xeon E5645, two sockets, 6 cores per 1 CPU)
 - Linux version 3.2.0 (Ubuntu 12.04 LTS), which is running directly on the machine (i.e. without a hypervisor)
 
 We tested several benchmark tools in the past and
