@@ -137,10 +137,8 @@ The type of WAI applications is as follows:
 In Haskell, argument types of function are separated by right arrows and
 the rightmost one is the type of return value.
 So, we can interpret the definition
-as a WAI application takes `Request` and returns `Response`.
-(FIXME: "strictly, it returns `ResourceT IO Response`. also, should explain
-ResourceT as it is not a standard type, so is not necessarily clear even to
-someone who knows haskell.")
+as a WAI application takes `Request` and returns `Response`
+used in the context where I/O is possible and resources are well managed. (FIXME: please review this sentence.)
 
 After accepting a new HTTP connection, a dedicated user thread is spawned for the
 connection.
