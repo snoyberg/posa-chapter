@@ -279,13 +279,7 @@ If N is greater than or equal to 2, `mighty` creates N child processes
 and the parent process just works to deliver signals.
 However, if N is 1, `mighty` does not create any child process.
 Instead, the executed process itself serves HTTP.
-Also, `mighty` stays in its terminal if debug mode is on.
-
-(FIXME: "the workaround to enable profiling is interesting, and possibly useful
-to a haskell dev, but it seems out of place to bring it up here. sure,
-profiling is being used to drive the optimisation, but I found these two
-paragraphs confusing given the section heading")
-
+Also, `mighty` stays in its terminal if debug mode is on. (FIXME: #11)
 
 When we profiled `mighty`,
 we were surprised that the standard function to format date string
