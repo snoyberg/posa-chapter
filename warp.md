@@ -230,6 +230,8 @@ There are four key ideas to implement high-performance servers in Haskell:
 3. Avoiding locks
 4. Using proper data structures
 
+(FIXME: "these mostly apply to servers not in haskell too")
+
 ### Issuing as few system calls as possible
 
 If a system call is issued, 
@@ -250,7 +252,7 @@ When a new connection is accepted from the listening socket,
 it is necessary to set the corresponding socket as non-blocking as well.
 The network library implements this by calling `fcntl()` twice:
 one is to get the current flags and the other is to set
-the flags with the non-blocking flag *ORed*.
+the flags with the non-blocking flag *ORed*. (FIXME: #10)
 
 On Linux, the non-block flag of a connected socket
 is always unset even if its listening socket is non-blocking.
