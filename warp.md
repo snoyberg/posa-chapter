@@ -2,7 +2,7 @@
 
 Authors: Kazu Yamamoto and Michael Snoyman
 
-Warp is a high-performance library of HTTP server side in Haskell, (FIXME: "this sentence is not english")
+Warp is a high-performance HTTP server library written in Haskell,
 a purely functional programming language.
 Both Yesod, a web application framework, and `mighty`, an HTTP server,
 are implemented over Warp.
@@ -51,7 +51,8 @@ occur, resulting in performance degradation.
 
 ### Event driven
 
-Recent treand to implement high-performance servers is event-driven programming. (FIXME: modified according to reviewer's comment. Please see if this is corrent English.)
+In the world of high-performance servers,
+the recent trend has been to take advantage of event-driven programming.
 In this architecture multiple connections are handled
 by a single process (Fig (TBD:2.png)).
 Lighttpd is an example of a web server using this architecture.
@@ -75,20 +76,19 @@ Using the prefork technique, port sharing can be achieved.
 In traditional process programming, a process for a new connection
 is forked after the connection is accepted.
 In contrast, the prefork technique forks processes
-before new connections are accepted
-Please don't be confused with Apache's prefork mode.
-(FIXME: please review this.)
+before new connections are accepted.
+Despite the shared name,
+this technique should not be confused with Apache's prefork mode.
 
 ![One process per core](https://raw.github.com/snoyberg/posa-chapter/master/3.png)
 
 One web server that uses this architecture is `nginx`.
-Node.js used the event-driven architecture in the past but
-it also implemented this scheme recently.
+Node.js used the event-driven architecture in the past, but
+recently it also implemented the prefork technique.
 The advantage of this architecture is
 that it utilizes all cores and improves performance. 
-However, it does not resolve the issue of programs having poor clarity
-because of event handlers / callbacks.
- (FIXME: #7)
+However, it does not resolve the issue of programs having poor clarity,
+due to the reliance on handler / callback functions.
 
 ### User threads
 
@@ -143,10 +143,10 @@ The type of WAI applications is as follows:
     type Application = Request -> ResourceT IO Response
 
 In Haskell, argument types of function are separated by right arrows and
-the rightmost one is the type of return value.
+the rightmost one is the type of the return value.
 So, we can interpret the definition
-as a WAI application takes `Request` and returns `Response`
-used in the context where I/O is possible and resources are well managed. (FIXME: please review this sentence.)
+as: a WAI application takes a `Request` and returns a `Response`,
+used in the context where I/O is possible and resources are well managed.
 
 After accepting a new HTTP connection, a dedicated user thread is spawned for the
 connection.
@@ -226,7 +226,7 @@ measured in requests per second.
 There are four key ideas to implement high-performance servers in Haskell:
 
 1. Issuing as few system calls as possible
-2. Specialization and avoiding re-calculation (FIXME: "'specialization' as used here is a bit confusing, as GHC has a SPECIALIZE pragma, which is what I first thought was meant. instead it is about creating a GMT-only date formatting function.)
+2. Specialized function implementations, and avoiding re-calculation
 3. Avoiding locks
 4. Using proper data structures
 
@@ -262,7 +262,7 @@ So, if we use `accept4()`, we can avoid two unnecessary `fcntl()`s.
 Our patch to use `accept4()` on Linux has been already merged to
 the network library.
 
-### Specialization and avoiding re-calculation
+### Specialized functions and avoiding re-calculation
 
 (FIXME: "'specialization' as used here is a bit confusing, as GHC has a SPECIALIZE pragma, which is what I first thought was meant. instead it is about creating a GMT-only date formatting function.)
 
@@ -444,7 +444,7 @@ We need to perform the following steps:
 
 2. Tokenize the path along forward slashes, ending up with `["buenos", "d%C3%ADas"]`.
 
-3. Percent-decode the individual pieces, ending up with `["buenos", "d\195\173as"]`. (FIXME: "url-decode?")
+3. Percent-decode the individual pieces, ending up with `["buenos", "d\195\173as"]`. (FIXME: "url-decode?" why the change?)
 
 4. UTF8-decode each piece, finally arriving at Unicode-aware text: `["buenos", "días"]`.
 
@@ -664,13 +664,15 @@ if an action is not completed in a specified time.
 Otherwise, a successful value is returned wrapped with `Just`.
 `timeout` eloquently shows how great Haskell's composability is.
 
-`timeout` is useful for most purposes
-but its performance is not good enough to implement high-performance servers.
-This is because that `timeout` spawns a user thread to handle timeout. (FIXME: please review this.)
-We need to avoid the creation of a user thread for timeout for each connection.
+`timeout` is useful for most purposes,
+but its performance is inadequate for implementing high-performance servers.
+The problem is that, for each timeout created, this function will spawn a new user thread.
+While user threads are cheaper than system threads,
+they still involve an overhead which can add up.
+We need to avoid the creation of a user thread for each connection's timeout handling.
 So, we implemented a timeout system which uses only
 one user thread, called the timeout manager, to handle the timeouts of all connections.
-Its heart is the following two points:
+At its core are the following two points:
 
 - Double `IORef`s
 - Safe swap and merge algorithm
