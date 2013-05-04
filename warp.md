@@ -2,7 +2,7 @@
 
 Authors: Kazu Yamamoto and Michael Snoyman
 
-Warp is a high-performance library of HTTP server side in Haskell,
+Warp is a high-performance library of HTTP server side in Haskell, (FIXME: "this sentence is not english")
 a purely functional programming language.
 Both Yesod, a web application framework, and `mighty`, an HTTP server,
 are implemented over Warp.
