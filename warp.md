@@ -297,7 +297,7 @@ But if an HTTP server accepts more than one request per second,
 the server repeats the same formatting again and again.
 So, we also implemented a cache mechanism for date strings.
 
-We will also explain this topic in Section (TBD:Writing the Parser)
+We will also explain specialization and avoiding re-calculation in Section (TBD:Writing the Parser)
 and in Section (TBD:Composer for HTTP response header).
 
 ### Avoiding locks
@@ -444,7 +444,7 @@ We need to perform the following steps:
 
 2. Tokenize the path along forward slashes, ending up with `["buenos", "d%C3%ADas"]`.
 
-3. Percent-decode the individual pieces, ending up with `["buenos", "d\195\173as"]`.
+3. Percent-decode the individual pieces, ending up with `["buenos", "d\195\173as"]`. (FIXME: "url-decode?")
 
 4. UTF8-decode each piece, finally arriving at Unicode-aware text: `["buenos", "días"]`.
 
@@ -527,7 +527,7 @@ The composability of the conduit package makes this an easy and efficient operat
 ![Middlewares](https://raw.github.com/snoyberg/posa-chapter/master/middleware.png)
 
 Elaborating on the gzip middleware example,
-Conduit allows us to create a middleware which runs in a nearly optimal manner.
+conduit allows us to create a middleware which runs in a nearly optimal manner.
 The original `Source` provided by the application is connected to the `gzip` `Conduit`.
 As each new chunk of data is produced by the initial `Source`,
 it is fed into the `zlib` library, filling up a buffer with compressed bytes.
