@@ -120,14 +120,16 @@ while keeping high-performance (Fig (TBD:4.png)).
 
 As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality.
-The Haskell community is now developing a parallel IO manager.
-A Haskell program with the parallel IO manager is
-executed as a single process and
+The prefork technique will be obsoleted because
+the Haskell community developed a parallel IO manager.
+A Haskell program with the parallel IO manager is executed
+as a single process and
 multiple IO managers run as native threads to utilize cores.
 Each user thread is executed on any one of the cores.
-If and when this code is merged into GHC,
-Warp itself will be able to use this architecture
-without any modifications.
+GHC version 7.8 including the parallel IO manager will be released
+in the autumn of 2013.
+With GHC version 7.8, 
+Warp itself will be able to use this architecture without any modifications.
 
 ## Warp's architecture
 
@@ -215,7 +217,7 @@ Here is the result:
 The x-axis is the number of workers and the y-axis gives throughput,
 measured in requests per second.
 
-- mighty 2.8.4 w/ parallel IO manager: compiled with GHC 7.7.20130504.
+- mighty 2.8.4 w/ parallel IO manager: compiled with GHC version 7.7.20130504 (to be GHC version 7.8).
   It uses only one worker and the number of cores to be used was specified
   by GHC runtime option(`+RTS -N<x>`).
 
