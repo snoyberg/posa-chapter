@@ -230,8 +230,6 @@ There are four key ideas to implement high-performance servers in Haskell:
 3. Avoiding locks
 4. Using proper data structures
 
-(FIXME: "these mostly apply to servers not in haskell too")
-
 ### Issuing as few system calls as possible
 
 If a system call is issued, 
@@ -252,7 +250,7 @@ When a new connection is accepted from the listening socket,
 it is necessary to set the corresponding socket as non-blocking as well.
 The network library implements this by calling `fcntl()` twice:
 one is to get the current flags and the other is to set
-the flags with the non-blocking flag *ORed*. (FIXME: #10)
+the flags with the non-blocking flag *ORed*.
 
 On Linux, the non-block flag of a connected socket
 is always unset even if its listening socket is non-blocking.
@@ -263,8 +261,6 @@ Our patch to use `accept4()` on Linux has been already merged to
 the network library.
 
 ### Specialized functions and avoiding re-calculation
-
-(FIXME: "'specialization' as used here is a bit confusing, as GHC has a SPECIALIZE pragma, which is what I first thought was meant. instead it is about creating a GMT-only date formatting function.)
 
 GHC provides a profiling mechanism, but it has a limitation:
 correct profiling is only possible
@@ -279,7 +275,7 @@ If N is greater than or equal to 2, `mighty` creates N child processes
 and the parent process just works to deliver signals.
 However, if N is 1, `mighty` does not create any child process.
 Instead, the executed process itself serves HTTP.
-Also, `mighty` stays in its terminal if debug mode is on. (FIXME: #11)
+Also, `mighty` stays in its terminal if debug mode is on.
 
 When we profiled `mighty`,
 we were surprised that the standard function to format date string
