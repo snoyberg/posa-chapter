@@ -192,14 +192,11 @@ We used `weighttp` from FreeBSD as follows:
 
 This means that 1,000 HTTP connections are established, with
 each connection sending 100 requests.
-3 native threads are spawned to carry out these jobs.
+10 native threads are spawned to carry out these jobs.
 
-The target web servers are compiled on Linux.
+The target web servers were compiled on Linux.
 For all requests, the same `index.html` file is returned.
 We used `nginx`'s `index.html`, whose size is 151 bytes.
-As "127.0.0.1" suggests, we measured web servers locally.
-We should have measured from a remote machine, but
-we do not have a suitable environment at the moment. (FIXME: #8)
 
 Since Linux/FreeBSD have many control parameters,
 we need to configure the parameters carefully.
