@@ -215,6 +215,12 @@ Here is the result:
 The x-axis is the number of workers and the y-axis gives throughput,
 measured in requests per second.
 
+- mighty 2.8.4 w/ parallel IO manager: compiled with GHC 7.7.20130504.
+  It uses only one worker and the number of cores to be used was specified
+  by GHC runtime option(`+RTS -N<x>`).
+
+- mighty 2.8.4 worker: compiled with GHC 7.6.3.
+
 ## Key ideas
 
 There are four key ideas to implement high-performance servers in Haskell:
