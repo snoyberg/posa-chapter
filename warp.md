@@ -171,11 +171,12 @@ if a significant amount of data is not received for a certain period.
 
 Before we explain how to improve the performance of Warp,
 we would like to show the results of our benchmark.
-We measured throughput of `mighty` 2.8.2 (with Warp 1.3.4.1) and `nginx` 1.2.4.
+We measured throughput of `mighty` 2.8.4 (with Warp 1.3.8.1) and `nginx` 1.4.0.
 Our benchmark environment is as follows:
 
-- One "12 cores" machine (Intel Xeon E5645, two sockets, 6 cores per 1 CPU)
-- Linux version 3.2.0 (Ubuntu 12.04 LTS), which is running directly on the machine (i.e. without a hypervisor)
+- Two "12 cores" machines (Intel Xeon E5645, two sockets, 6 cores per 1 CPU) connected with 1Gpbs Ethernet
+- One directly runs Linux version 3.2.0 (Ubuntu 12.04 LTS)
+- The other directly runs FreeBSD 9.1
 
 We tested several benchmark tools in the past and
 our favorite one was `httperf`.
@@ -185,21 +186,22 @@ multi-cores.
 So, we switched to `weighttp`, which 
 is based on `libev` (the `epoll` family) and can use
 multiple native threads. 
-We used `weighttp` as follows:
+We used `weighttp` from FreeBSD as follows:
 
-    weighttp -n 100000 -c 1000 -t 3 -k http://127.0.0.1:8000/
+    weighttp -n 100000 -c 1000 -t 10 -k http://<ip_address>:<port_number>/
 
 This means that 1,000 HTTP connections are established, with
 each connection sending 100 requests.
 3 native threads are spawned to carry out these jobs.
 
+The target web servers are compiled on Linux.
 For all requests, the same `index.html` file is returned.
 We used `nginx`'s `index.html`, whose size is 151 bytes.
 As "127.0.0.1" suggests, we measured web servers locally.
 We should have measured from a remote machine, but
 we do not have a suitable environment at the moment. (FIXME: #8)
 
-Since Linux has many control parameters,
+Since Linux/FreeBSD have many control parameters,
 we need to configure the parameters carefully.
 You can find a good introduction to
 Linux parameter tuning in [ApacheBench & HTTPerf](http://gwan.com/en_apachebench_httperf.html).
@@ -209,14 +211,9 @@ We carefully configured both `mighty` and `nginx` as follows:
 - Disabled logging
 - Disabled rate limitation
 
-Since our machine has 12 cores and
-`weighttp` uses three native threads,
-we measured web servers from one worker to
-eight workers (in our experience,
-three native threads is enough to measure 8 workers).
 Here is the result:
 
-![Performance of Warp and `nginx`](https://raw.github.com/snoyberg/posa-chapter/master/multi-workers.png)
+![Performance of Warp and `nginx`](https://raw.github.com/snoyberg/posa-chapter/master/benchmark.png)
 
 The x-axis is the number of workers and the y-axis gives throughput,
 measured in requests per second.
