@@ -173,7 +173,7 @@ if a significant amount of data is not received for a certain period.
 
 Before we explain how to improve the performance of Warp,
 we would like to show the results of our benchmark.
-We measured throughput of `mighty` 2.8.4 (with Warp 1.3.8.1) and `nginx` 1.4.0.
+We measured throughput of `mighty` version 2.8.4 (with Warp version 1.3.8.1) and `nginx` version 1.4.0.
 Our benchmark environment is as follows:
 
 - Two "12 cores" machines (Intel Xeon E5645, two sockets, 6 cores per 1 CPU) connected with 1Gpbs Ethernet
@@ -221,7 +221,7 @@ measured in requests per second.
   It uses only one worker and the number of cores to be used was specified
   by GHC runtime option(`+RTS -N<x>`).
 
-- mighty 2.8.4 worker: compiled with GHC 7.6.3.
+- mighty 2.8.4 worker: compiled with GHC version 7.6.3 (which is the latest stable version).
 
 ## Key ideas
 
