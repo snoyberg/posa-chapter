@@ -217,11 +217,12 @@ Here is the result:
 The x-axis is the number of workers and the y-axis gives throughput,
 measured in requests per second.
 
-- mighty 2.8.4 w/ parallel IO manager: compiled with GHC version 7.7.20130504 (to be GHC version 7.8).
-  It uses only one worker and the number of cores to be used was specified
-  by GHC runtime option(`+RTS -N<x>`).
+- mighty 2.8.4 (GHC 7.7): compiled with GHC version 7.7.20130504 (to be GHC version 7.8). 
+  It uses the parallel IO manager with only one worker.
+  GHC runtime option, `+RTS -qa -A128m -N<x>` is specified where
+  <x> is the number of cores and 128m is the allocation area size used by the garbage collector.
 
-- mighty 2.8.4 worker: compiled with GHC version 7.6.3 (which is the latest stable version).
+- mighty 2.8.4 (GHC 7.6.3): compiled with GHC version 7.6.3 (which is the latest stable version).
 
 ## Key ideas
 
