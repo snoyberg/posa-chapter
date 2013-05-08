@@ -443,7 +443,7 @@ We need to perform the following steps:
 
 2. Tokenize the path along forward slashes, ending up with `["buenos", "d%C3%ADas"]`.
 
-3. Percent-decode the individual pieces, ending up with `["buenos", "d\195\173as"]`. (FIXME: "url-decode?" why the change?)
+3. Percent-decode the individual pieces, ending up with `["buenos", "d\195\173as"]`.
 
 4. UTF8-decode each piece, finally arriving at Unicode-aware text: `["buenos", "días"]`.
 
@@ -685,7 +685,7 @@ If `Inactive`, the timeout manager kills its associated user thread.
 Each status is referred to by an `IORef`.
 `IORef` is a reference whose value can be destructively updated.
 To update status through this `IORef`,
-atomicity is not necessary because status is just overwritten. (FIXME: #12)
+atomicity is not necessary because status is just overwritten.
 In addition to the timeout manager,
 each user thread repeatedly turns its status to `Active` through its own `IORef` as its connection actively continues.
 
