@@ -1,6 +1,6 @@
 # Warp
 
-Authors: Kazu Yamamoto and Michael Snoyman
+Authors: Kazu Yamamoto, Michael Snoyman and Andreas Voellmy
 
 Warp is a high-performance HTTP server library written in Haskell,
 a purely functional programming language.
@@ -126,7 +126,7 @@ As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality.
 
 The prefork technique will be obsoleted because
-the Haskell community developed a parallel IO manager.
+we developed a parallel IO manager.
 A Haskell program with the parallel IO manager is executed
 as a single process and
 multiple IO managers run as native threads to utilize cores (Fig (TBD:5.png)).
