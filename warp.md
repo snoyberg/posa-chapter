@@ -727,7 +727,10 @@ During this process, new connections may be created and
 their status are inserted via `atomicModifyIORef` by
 their corresponding user threads.
 Then, the timeout manager atomically merges
-the pruned list and the new list. (FIXME: #13)
+the pruned list and the new list.
+Thanks to the lazy evaluation of Haskell,
+the merge function quickly returns and
+the merge process is postponed until it values are actually used.
 
 ### Timers for file descriptors
 
