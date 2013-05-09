@@ -116,16 +116,20 @@ it possible to write clear code
 like traditional thread programming
 while keeping high-performance (Fig (TBD:4.png)).
 
-![User threads](https://raw.github.com/snoyberg/posa-chapter/master/4.png)
+![User threads with one process per core](https://raw.github.com/snoyberg/posa-chapter/master/4.png)
 
 As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality.
+
 The prefork technique will be obsoleted because
 the Haskell community developed a parallel IO manager.
 A Haskell program with the parallel IO manager is executed
 as a single process and
-multiple IO managers run as native threads to utilize cores.
+multiple IO managers run as native threads to utilize cores (Fig (TBD:5.png)).
 Each user thread is executed on any one of the cores.
+
+![User threads in a sigle process](https://raw.github.com/snoyberg/posa-chapter/master/5.png)
+
 GHC version 7.8 including the parallel IO manager will be released
 in the autumn of 2013.
 With GHC version 7.8, 
