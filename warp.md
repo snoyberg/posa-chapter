@@ -692,8 +692,6 @@ If `Inactive`, the timeout manager kills its associated user thread.
 
 Each status is referred to by an `IORef`.
 `IORef` is a reference whose value can be destructively updated.
-To update status through this `IORef`,
-atomicity is not necessary because status is just overwritten.
 In addition to the timeout manager,
 each user thread repeatedly turns its status to `Active` through its own `IORef` as its connection actively continues.
 
