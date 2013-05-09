@@ -872,3 +872,7 @@ Yet with all of this performance, our codebase is still relatively tiny
 (under 1300 SLOC at time of writing).
 If you are looking to write maintainable, efficient, concurrent code,
 Haskell should be a strong consideration.
+
+## Acknowledgment
+
+The authors thank the editors and two anonymous reviewers for useful feedback.
