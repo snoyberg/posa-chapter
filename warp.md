@@ -731,6 +731,10 @@ the pruned list and the new list.
 Thanks to the lazy evaluation of Haskell,
 the merge function quickly returns and
 the merge process is postponed until it values are actually used.
+And by using a special data structure known as a difference list,
+our merge operation runs in constant time,
+so when the result of the merge process is actually evaluated,
+it evaluates quickly.
 
 ### Timers for file descriptors
 
