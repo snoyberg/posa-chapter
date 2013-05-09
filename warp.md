@@ -106,7 +106,7 @@ they are not commonly used now because they are not lightweight
 or are not robust.
 Note that some languages provide library-level coroutines but
 they are not preemptive threads.
-Note also that Erlang and Go provides lightweight processes.
+Note also that Erlang and Go provide lightweight processes.
 
 In Haskell, most computation is non-destructive.
 This means that almost all functions are thread-safe.
