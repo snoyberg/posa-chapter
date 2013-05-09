@@ -101,9 +101,13 @@ modern computers can run 100,000 user threads smoothly.
 They are robust; even asynchronous exceptions are caught
 (this feature is used by the timeout handler, described in Section (TBD:Warp's architecture) and in Section (TBD:Timers for connections)).
 
-Some languages and libraries provided user threads in the past,
-but they are not commonly used now because they are not lightweight
-or are not robust. (FIXME: #9)
+Though some languages provided user threads in the past,
+they are not commonly used now because they are not lightweight
+or are not robust.
+Note that some languages provide library-level coroutines but
+they are not preemptive threads.
+Note also that Erlang and Go provides lightweight processes.
+
 In Haskell, most computation is non-destructive.
 This means that almost all functions are thread-safe.
 GHC uses data allocation as a safe point to switch context of user threads.
