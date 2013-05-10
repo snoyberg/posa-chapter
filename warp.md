@@ -243,13 +243,13 @@ There are four key ideas to implement high-performance servers in Haskell:
 
 ### Issuing as few system calls as possible
 
-If a system call is issued, 
-CPU time is given to the kernel and all user threads stop.
-So, we need to use as few system calls as possible.
-For an HTTP session to get a static file,
-Warp calls `recv()`, `send()` and `sendfile()` (a system call enabling zero-copying a file) only (Fig (TBD:warp.png)).
-`open()`, `stat()` and `close()` can be omitted
-thanks to cache mechanism described in Section (TBD:Timers for file descriptors).
+Although system calls are typically inexpensive on most modern operating
+systems, they can add a significant computational burden when called frequently.
+Indeed, Warp performs several system calls when serving each request, including
+`recv()`, `send()` and `sendfile()` (a system call enabling zero-copying a file)
+only (Fig (TBD:warp.png)). Other system calls, such as `open()`, `stat()` and
+`close()` can often be omitted when processing a single request, thanks to cache
+mechanism described in Section (TBD:Timers for file descriptors). 
 
 We can use the `strace` command to see what system calls are actually used.
 When we observed the behavior of `nginx` with `strace`, 
