@@ -727,12 +727,9 @@ their corresponding user threads.
 Then, the timeout manager atomically merges
 the pruned list and the new list.
 Thanks to the lazy evaluation of Haskell,
-the merge function quickly returns and
-the merge process is postponed until it values are actually used.
-And by using a special data structure known as a difference list,
-our merge operation runs in constant time,
-so when the result of the merge process is actually evaluated,
-it evaluates quickly.
+the application of the merge function is done in O(1) and
+the merge operation, which is in O(N), is postponed
+until its values are actually consumed.
 
 ### Timers for file descriptors
 
