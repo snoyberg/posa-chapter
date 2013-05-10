@@ -607,10 +607,10 @@ by directly using `memcpy()`, a highly tuned byte copy function in C.
 For `ResponseBuilder` and `ResponseSource`,
 the `Builder` values provided by the application are packed into a list of `ByteString`.
 A composed header is prepended to the list and
-send() is used to send the list in a fixed buffer.
+`send()` is used to send the list in a fixed buffer.
 
 For `ResponseFile`, 
-Warp uses send() and sendfile() to send
+Warp uses `send()` and `sendfile()` to send
 an HTTP response header and body, respectively.
 Fig (TBD:warp.png) illustrates this case.
 Again, `open()`, `stat()`, `close()` and other system calls can be ommitted
@@ -629,7 +629,7 @@ we found Warp to be really slow.
 
 Observing the results of the `tcpdump` command, 
 we realized that this is because originally Warp used
-the combination of writev() for header and sendfile() for body.
+the combination of `writev()` for header and `sendfile()` for body.
 In this case, an HTTP header and body are sent in separate TCP packets (Fig (TBD:tcpdump.png)).
 
 ![Packet sequence of old Warp](https://raw.github.com/snoyberg/posa-chapter/master/tcpdump.png)
