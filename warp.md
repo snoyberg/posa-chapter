@@ -350,7 +350,7 @@ The purpose is to take a stream of bytes coming from the incoming socket,
 parse out the request line and individual headers,
 and leave the request body to be processed by the application.
 It must take this information and produce a data structure which the application
-(whether a Yesod application, mighty, or something else)
+(whether a Yesod application, `mighty`, or something else)
 will use to form its response.
 
 The request body itself presents some interesting challenges.
