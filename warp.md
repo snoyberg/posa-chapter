@@ -98,8 +98,9 @@ This thread is programmed in a traditional style, using logically blocking I/O
 calls. This keeps the program clear and simple, while GHC handles the complexities of
 non-blocking IO and multicore work dispatching.
 
-Under the hood, GHC multiplexes user threads over a small number of OS
-threads. GHC's runtime system includes a multicore thread scheduler that can
+Under the hood, GHC multiplexes user threads
+over a small number of native threads.
+GHC's runtime system includes a multicore thread scheduler that can
 switch between user threads cheaply, since it does so without involving any OS
 context switches. 
 GHC's user threads are lightweight;
