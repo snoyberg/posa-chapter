@@ -122,12 +122,6 @@ manager thread monitors events and notifies threads when their events occur, cau
 re-scheduled for execution. This all happens
 transparently to the user thread, with no effort on the Haskell programmer's part.
 
-Fig (TBD:4.png) illustrates this arrangement in the context of a web server,
-where each browser connection is handled by a single light-weight thread, and a
-single native thread running on a CPU core handles work from several connections.
-
-![User threads with one process per core](https://raw.github.com/snoyberg/posa-chapter/master/4.png)
-
 In Haskell, most computation is non-destructive.
 This means that almost all functions are thread-safe.
 GHC uses data allocation as a safe point to switch context of user threads.
@@ -143,9 +137,14 @@ they are not preemptive threads.
 Note also that Erlang and Go provide lightweight processes.
 
 As of this writing, `mighty` still uses the prefork technique to fork processes
-to utilize cores and Warp does not have this functionality. The prefork
-technique is used to avoid certain bottlenecks, both within `mighty` and Warp
-and within the GHC runtime system. 
+to utilize cores and Warp does not have this functionality. 
+
+Fig (TBD:4.png) illustrates this arrangement in the context of a web server with the prefork technique written in Haskelle,
+where each browser connection is handled by a single light-weight thread, and a
+single native thread running on a CPU core handles work from several connections.
+
+![User threads with one process per core](https://raw.github.com/snoyberg/posa-chapter/master/4.png)
+
 
 These bottlenecks, both in `mighty` and in the IO manager component of the
 GHC runtime system have been addressed and as a result, the prefork technique
