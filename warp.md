@@ -145,10 +145,9 @@ single native thread running on a CPU core handles work from several connections
 
 ![User threads with one process per core](https://raw.github.com/snoyberg/posa-chapter/master/4.png)
 
-
-These bottlenecks, both in `mighty` and in the IO manager component of the
-GHC runtime system have been addressed and as a result, the prefork technique
-will no longer be used in `mighty`. In particular, we have developed a `parallel
+We found that the IO manager component of the GHC runtime system
+itself has performance bottlenecks.
+To solve this problem, we have developed a `parallel
 IO manager` that uses per-core event registration tables and event monitors to
 greatly improve multicore scaling. 
 A Haskell program with the parallel IO manager is executed
@@ -161,7 +160,8 @@ Each user thread is executed on any one of the cores.
 GHC version 7.8 including the parallel IO manager will be released
 in the autumn of 2013.
 With GHC version 7.8, 
-Warp itself will be able to use this architecture without any modifications.
+Warp itself will be able to use this architecture without any modifications
+and `mighty` will not need to use the prefork technique.
 
 ## Warp's architecture
 
