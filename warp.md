@@ -122,7 +122,7 @@ transparently to the user thread, with no effort on the Haskell programmer's par
 
 Fig (TBD:4.png) illustrates this arrangement in the context of a web server,
 where each browser connection is handled by a single light-weight thread, and a
-single OS thread running on a CPU core handles work from several connections.
+single native thread running on a CPU core handles work from several connections.
 
 ![User threads with one process per core](https://raw.github.com/snoyberg/posa-chapter/master/4.png)
 
