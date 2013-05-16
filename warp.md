@@ -136,7 +136,7 @@ Note that some languages provide library-level coroutines but
 they are not preemptive threads.
 Note also that Erlang and Go provide lightweight processes.
 
-As of this writing, `mighty` still uses the prefork technique to fork processes
+As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality. 
 
 Fig (TBD:4.png) illustrates this arrangement in the context of a web server with the prefork technique written in Haskelle,
