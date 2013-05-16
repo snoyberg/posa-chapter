@@ -99,7 +99,7 @@ calls. This keeps the program clear and simple, while GHC handles the complexiti
 non-blocking IO and multicore work dispatching.
 
 Under the hood, GHC multiplexes user threads over a small number of OS
-threads. GHC's runtime system include a multicore thread scheduler that can
+threads. GHC's runtime system includes a multicore thread scheduler that can
 switch between user threads cheaply, since it does so without involving any OS
 context switches. 
 GHC's user threads are lightweight;
@@ -115,9 +115,9 @@ receiving or sending data on a socket, a non-blocking
 call is attempted instead. If it succeeds, the thread continues immediately without
 involving the IO manager or the thread scheduler. If the call would block, the
 IO manager is used to register interest for events on the file descriptor and
-the thread indicates to the scheduler that it is waiting. Independently, the IO
-manager monitors for events and notifies threads, causing them to be
-re-scheduled for execution, when their event occurs. This all happens
+the thread indicates to the scheduler that it is waiting. Independently, an IO
+manager thread monitors events and notifies threads when their events occur, causing them to be
+re-scheduled for execution. This all happens
 transparently to the user thread, with no effort on the Haskell programmer's part.
 
 Fig (TBD:4.png) illustrates this arrangement in the context of a web server,
