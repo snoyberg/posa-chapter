@@ -92,21 +92,39 @@ due to the reliance on handler / callback functions.
 
 ### User threads
 
-GHC's user threads can be used to solve the code clarity issue.
-They are implemented over an event-driven IO manager in GHC's runtime system.
-Standard libraries of Haskell use non-blocking system calls
-so that they can cooperate with the IO manager.
+GHC's user threads can be used to help solve the code clarity issue.
+In particular, we can handle each HTTP connection in a new user thread. 
+This thread is programmed in a traditional style, using logically blocking I/O
+calls. This keeps the program clear and simple, while GHC handles the complexities of
+non-blocking IO and multicore work dispatching.
+
+Under the hood, GHC multiplexes user threads over a small number of OS
+threads. GHC's runtime system include a multicore thread scheduler that can
+switch between user threads cheaply, since it does so without involving any OS
+context switches. 
 GHC's user threads are lightweight;
 modern computers can run 100,000 user threads smoothly.
 They are robust; even asynchronous exceptions are caught
-(this feature is used by the timeout handler, described in Section (TBD:Warp's architecture) and in Section (TBD:Timers for connections)).
+(this feature is used by the timeout handler, described in Section (TBD:Warp's
+architecture) and in Section (TBD:Timers for connections)).
+In addition, the scheduler includes a multicore load balancing algorithm to help
+utilize capacity of all available cores. 
 
-Though some languages provided user threads in the past,
-they are not commonly used now because they are not lightweight
-or are not robust.
-Note that some languages provide library-level coroutines but
-they are not preemptive threads.
-Note also that Erlang and Go provide lightweight processes.
+When a user thread performs a logically blocking I/O operation, such as
+receiving or sending data on a socket, a non-blocking
+call is attempted instead. If it succeeds, the thread continues immediately without
+involving the IO manager or the thread scheduler. If the call would block, the
+IO manager is used to register interest for events on the file descriptor and
+the thread indicates to the scheduler that it is waiting. Independently, the IO
+manager monitors for events and notifies threads, causing them to be
+re-scheduled for execution, when their event occurs. This all happens
+transparently to the user thread, with no effort on the Haskell programmer's part.
+
+Fig (TBD:4.png) illustrates this arrangement in the context of a web server,
+where each browser connection is handled by a single light-weight thread, and a
+single OS thread running on a CPU core handles work from several connections.
+
+![User threads with one process per core](https://raw.github.com/snoyberg/posa-chapter/master/4.png)
 
 In Haskell, most computation is non-destructive.
 This means that almost all functions are thread-safe.
@@ -115,12 +133,12 @@ Because of functional programming style,
 new data are frequently created and it is known that 
 [such data allocation occurs regularly enough for context switching](http://www.aosabook.org/en/ghc.html).
 
-Use of lightweight threads makes
-it possible to write clear code
-like traditional thread programming
-while keeping high-performance (Fig (TBD:4.png)).
-
-![User threads with one process per core](https://raw.github.com/snoyberg/posa-chapter/master/4.png)
+Though some languages provided user threads in the past,
+they are not commonly used now because they are not lightweight
+or are not robust.
+Note that some languages provide library-level coroutines but
+they are not preemptive threads.
+Note also that Erlang and Go provide lightweight processes.
 
 As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality.
