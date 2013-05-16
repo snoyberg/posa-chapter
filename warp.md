@@ -112,10 +112,10 @@ utilize capacity of all available cores.
 
 When a user thread performs a logically blocking I/O operation, such as
 receiving or sending data on a socket, a non-blocking
-call is attempted instead. If it succeeds, the thread continues immediately without
+call is actually attempted. If it succeeds, the thread continues immediately without
 involving the IO manager or the thread scheduler. If the call would block, the
-IO manager is used to register interest for events on the file descriptor and
-the thread indicates to the scheduler that it is waiting. Independently, an IO
+thread instead registers interest for the relevant event with the runtime
+system's IO manager component and then indicates to the scheduler that it is waiting. Independently, an IO
 manager thread monitors events and notifies threads when their events occur, causing them to be
 re-scheduled for execution. This all happens
 transparently to the user thread, with no effort on the Haskell programmer's part.
@@ -140,11 +140,16 @@ Note that some languages provide library-level coroutines but
 they are not preemptive threads.
 Note also that Erlang and Go provide lightweight processes.
 
-As of this writing, `mighty` uses the prefork technique to fork processes
-to utilize cores and Warp does not have this functionality.
+As of this writing, `mighty` still uses the prefork technique to fork processes
+to utilize cores and Warp does not have this functionality. The prefork
+technique is used to avoid certain bottlenecks, both within `mighty` and Warp
+and within the GHC runtime system. 
 
-The prefork technique will be obsoleted because
-we developed a parallel IO manager.
+These bottlenecks, both in `mighty` and in the IO manager component of the
+GHC runtime system have been addressed and as a result, the prefork technique
+will no longer be used in `mighty`. In particular, we have developed a `parallel
+IO manager` that uses per-core event registration tables and event monitors to
+greatly improve multicore scaling. 
 A Haskell program with the parallel IO manager is executed
 as a single process and
 multiple IO managers run as native threads to utilize cores (Fig (TBD:5.png)).
