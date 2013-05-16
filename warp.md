@@ -103,6 +103,7 @@ over a small number of native threads.
 GHC's runtime system includes a multicore thread scheduler that can
 switch between user threads cheaply, since it does so without involving any OS
 context switches. 
+
 GHC's user threads are lightweight;
 modern computers can run 100,000 user threads smoothly.
 They are robust; even asynchronous exceptions are caught
