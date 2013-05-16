@@ -138,9 +138,9 @@ Note also that Erlang and Go provide lightweight processes.
 
 As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality. 
-Fig (TBD:4.png) illustrates this arrangement in the context of a web server with the prefork technique written in Haskelle,
+Fig (TBD:4.png) illustrates this arrangement in the context of a web server with the prefork technique written in Haskell,
 where each browser connection is handled by a single light-weight thread, and a
-single native thread running on a CPU core handles work from several connections.
+single native thread in a process running on a CPU core handles work from several connections.
 
 ![User threads with one process per core](https://raw.github.com/snoyberg/posa-chapter/master/4.png)
 
