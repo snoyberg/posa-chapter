@@ -134,7 +134,7 @@ they are not commonly used now because they are not lightweight
 or are not robust.
 Note that some languages provide library-level coroutines but
 they are not preemptive threads.
-Note also that Erlang and Go provide lightweight processes.
+Note also that Erlang and Go provide lightweight processes and lightweight goroutines, respectively.
 
 As of this writing, `mighty` uses the prefork technique to fork processes
 to utilize cores and Warp does not have this functionality. 
