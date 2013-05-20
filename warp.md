@@ -827,19 +827,21 @@ we will explain two here.
 
 ### Memory allocation
 
-When receiving and sending packets, buffers are allocated.
-We think that these memory allocations may be the current bottleneck.
-GHC runtime system uses `pthread_mutex_lock`
-to obtain a large object (larger than 409 bytes in 64 bit machines).
+When receiving and sending packets, buffers are allocated.  These buffers are
+allocated as so-called "pinned" byte arrays, so that they can be passed to C
+procedures, such as recv() and send().  Since it is best to receive or send as
+much data as possible in each system call, these buffers are moderately sized.
+Unfortunately, GHC's method for allocating large (larger than 409 bytes in 64
+bit machines) pinned byte arrays takes a global lock in the runtime system.
+This lock may become a bottleneck when scaling beyond 16 cores, if each core
+user thread frequently allocates such buffers.
 
-We tried to measure how much memory allocation
-for HTTP response header consume time.
-For this purpose, GHC provides *eventlog* which
-can record timestamps of each event.
-We surrounded a memory allocation function
-with the function to record a user event.
-Then we complied `mighty` with it and took eventlog.
-The result eventlog is illustrated as follows:
+We performed an initial investigation of the performance impact of large pinned
+array allocation for HTTP response header generation.  For this purpose, GHC
+provides *eventlog* which can record timestamps of each event.  We surrounded a
+memory allocation function with the function to record a user event.  Then we
+complied `mighty` with it and took eventlog.  The resulting eventlog is illustrated
+as follows:
 
 ![eventlog](https://raw.github.com/snoyberg/posa-chapter/master/eventlog.png)
 
